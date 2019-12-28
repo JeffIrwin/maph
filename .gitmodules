@@ -1,0 +1,9 @@
+[submodule "submodules/json"]
+	path = submodules/json
+	url = https://github.com/JeffIrwin/json
+[submodule "submodules/lodepng"]
+	path = submodules/lodepng
+	url = https://github.com/JeffIrwin/lodepng
+[submodule "submodules/pugixml"]
+	path = submodules/pugixml
+	url = https://github.com/JeffIrwin/pugixml

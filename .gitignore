@@ -1,0 +1,11 @@
+# CMake compile time products
+target/
+*.obj
+*.exe
+
+# Runtime products
+*.png
+
+# Miscellaneous scratch dir
+scratch/
+

@@ -5,6 +5,9 @@
 #include <iterator>
 #include <algorithm>
 #include <math.h>
+#include <regex>
+#include <experimental/filesystem>
+#include <glob.h>
 
 #include <json.hpp>
 using json = nlohmann::json;
@@ -37,6 +40,7 @@ class Settings
 
 		int nx, ny, nxy;
 		std::string fname;
+		std::string fgpx;
 
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
@@ -77,6 +81,77 @@ int save_png(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 	lodepng::save_file(imageBuffer, f);
 	return 0;
 }
+
+// Linux only?
+void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
+{
+	//Declare glob_t for storing the results of globbing
+	glob_t globbuf;
+
+	// Glob. GLOB_TILDE tells the globber to expand "~" in the pattern to the home directory
+	glob(pattern.c_str(), GLOB_TILDE, NULL, &globbuf);
+
+	for (int i = 0; i < globbuf.gl_pathc; ++i)
+		fileList.push_back(globbuf.gl_pathv[i]);
+
+	// Free the globbuf structure
+	if (globbuf.gl_pathc > 0)
+		globfree(&globbuf);
+}
+
+//const std::regex GenerateRegex(std::string& arg)
+//{
+//	for (auto i = arg.find('*'); i != std::string::npos; i = arg.find('*', i + 2))
+//	{
+//		arg.insert(i, 1, '.');
+//	}
+//	return std::regex(arg);
+//}
+//
+//// ref (and the above):
+////    https://stackoverflow.com/questions/48427938/files-in-directory-with-wildcard-on-windows
+//
+//std::experimental::filesystem::path FindFirstFile(std::experimental::filesystem::path directory, std::experimental::filesystem::path::const_iterator& start, const std::experimental::filesystem::path::const_iterator& finish, std::string& filename)
+//{
+//	while (start != finish && start->string().find('*') == std::string::npos) {
+//		directory /= *start++;
+//	}
+//	std::experimental::filesystem::directory_iterator it(directory);
+//	std::experimental::filesystem::path result;
+//
+//	if (it != std::experimental::filesystem::directory_iterator()) {
+//		if (start == finish) {
+//			for (auto i = filename.find('.'); i != std::string::npos; i = filename.find('.', i + 2)) {
+//				filename.insert(i, 1, '\\');
+//			}
+//			const auto re = GenerateRegex(filename);
+//
+//			do {
+//				if (!std::experimental::filesystem::is_directory(it->status()) && regex_match(it->path().string(), re)) {
+//					result = *it;
+//					break;
+//				}
+//			} while (++it != std::experimental::filesystem::directory_iterator());
+//		}
+//		else {
+//			auto startstring = start->string();
+//			const auto re = GenerateRegex(startstring);
+//			//const auto re = GenerateRegex(start->string());
+//			//const std::regex *re = GenerateRegex(start->string());
+//
+//			do {
+//				if (it->is_directory() && regex_match(prev(it->path().end())->string(), re)) {
+//					result = FindFirstFile(it->path(), next(start), finish, filename);
+//
+//					if (!result.empty()) {
+//						break;
+//					}
+//				}
+//			} while (++it != std::experimental::filesystem::directory_iterator());
+//		}
+//	}
+//	return result;
+//}
 
 int maph(int argc, char* argv[])
 {
@@ -125,9 +200,20 @@ int maph(int argc, char* argv[])
 	const std::string fnameDflt = fjson;
 	s.fname = loadJsonOrDefault(fnameId, fnameDflt, inj);
 
+	const std::string fgpxId = "GPX files";
+	const std::string fgpxDflt = "*.gpx";
+	s.fgpx = loadJsonOrDefault(fgpxId, fgpxDflt, inj);
+
 	// Echo inputs
 	std::cout << "Image size" << " = " << s.nx << " " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
+	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
+
+	std::vector<std::string> gpxs;
+	getFiles(s.fgpx, gpxs);
+
+	//std::cout << "GPX files = " << gpxs << std::endl;
+	std::cout << "Number of GPX files = " << gpxs.size() << std::endl;
 
 	std::vector<unsigned char> img;
 	s.nxy = s.nx * s.ny;

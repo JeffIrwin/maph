@@ -53,6 +53,7 @@ class Settings
 
 		std::string fname;
 		std::string fgpx;
+		int verb;
 
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
@@ -157,12 +158,13 @@ int maph(int argc, char* argv[])
 	Settings s;
 
 	const std::string sizexId = "Image size x";
-	const int sizexDflt = 1280;
-	s.nx = loadJsonOrDefault(sizexId, sizexDflt, inj);
+	s.nx = loadJsonOrDefault(sizexId, 1280, inj);
 
 	const std::string sizeyId = "Image size y";
-	const int sizeyDflt = 720;
-	s.ny = loadJsonOrDefault(sizeyId, sizeyDflt, inj);
+	s.ny = loadJsonOrDefault(sizeyId, 720, inj);
+
+	const std::string verbId = "Verbosity";
+	s.verb = loadJsonOrDefault(verbId, 0, inj);
 
 	const std::string minxId = "Min x";
 	s.minx = loadJsonOrDefault(minxId, 0.0, inj);
@@ -187,9 +189,10 @@ int maph(int argc, char* argv[])
 	s.fgpx = loadJsonOrDefault(fgpxId, fgpxDflt, inj);
 
 	// Echo inputs
-	std::cout << "Image size" << " = " << s.nx << " " << s.ny << "\n";
+	std::cout << "Image size" << " = " << s.nx << ", " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
+	std::cout << verbId << " = " << s.verb << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
 	if (!s.fit)
@@ -228,8 +231,7 @@ int maph(int argc, char* argv[])
 	{
 		int ntrkpt = 0;
 
-		// TODO:  add verbosity option
-		std::cout << "GPX file = " << gpxs[ig] << std::endl;
+		if (s.verb > 0) std::cout << "GPX file = " << gpxs[ig] << std::endl;
 
 		pugi::xml_document doc;
 		pugi::xml_parse_result result = doc.load_file(gpxs[ig].c_str());
@@ -258,7 +260,8 @@ int maph(int argc, char* argv[])
 				lons.push_back(lon);
 			}
 
-			std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
+			if (s.verb > 0) std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
+
 			ntrkptsum += ntrkpt;
 
 		}
@@ -307,8 +310,7 @@ int maph(int argc, char* argv[])
 		}
 	}
 
-	int io = save_png(img, s.nx, s.ny, "test.png");
-
+	int io = save_png(img, s.nx, s.ny, s.fname + s.imgext);
 	return io;
 }
 

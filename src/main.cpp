@@ -47,6 +47,10 @@ class Settings
 	public:
 
 		int nx, ny, nxy;
+
+		bool fit;
+		double minx, maxx, miny, maxy;
+
 		std::string fname;
 		std::string fgpx;
 
@@ -55,6 +59,15 @@ class Settings
 
 		const std::string dlm = "_", imgext = ".png";
 };
+
+void printBounds(const Settings& s)
+{
+	std::cout << "Bounds:\n\t"
+			<< s.minx << " <= x <= " << s.maxx
+			<< "\n\t"
+			<< s.miny << " <= y <= " << s.maxy
+			<< std::endl;
+}
 
 template <typename T> T loadJsonOrDefault(std::string id, T dflt, json j)
 {
@@ -110,6 +123,7 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 int maph(int argc, char* argv[])
 {
 
+	std::cout << std::setprecision(16);
 	std::string fjson;
 
 	int i = 0;
@@ -150,6 +164,20 @@ int maph(int argc, char* argv[])
 	const int sizeyDflt = 720;
 	s.ny = loadJsonOrDefault(sizeyId, sizeyDflt, inj);
 
+	const std::string minxId = "Min x";
+	s.minx = loadJsonOrDefault(minxId, 0.0, inj);
+
+	const std::string minyId = "Min y";
+	s.miny = loadJsonOrDefault(minyId, 0.0, inj);
+
+	const std::string maxxId = "Max x";
+	s.maxx = loadJsonOrDefault(maxxId, 0.0, inj);
+
+	const std::string maxyId = "Max y";
+	s.maxy = loadJsonOrDefault(maxyId, 0.0, inj);
+
+	s.fit = s.minx == s.maxx && s.miny == s.maxy;
+
 	const std::string fnameId = "File name prefix";
 	const std::string fnameDflt = fjson;
 	s.fname = loadJsonOrDefault(fnameId, fnameDflt, inj);
@@ -162,6 +190,10 @@ int maph(int argc, char* argv[])
 	std::cout << "Image size" << " = " << s.nx << " " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
+
+	//std::cout << "s.fit = " << s.fit << "\n";
+	if (!s.fit)
+		printBounds(s);
 
 	std::cout << std::endl;
 
@@ -177,21 +209,26 @@ int maph(int argc, char* argv[])
 
 	// Initialize
 	int ip = 0;
-	for (int ix = 0; ix < s.nx; ix++)
-		for (int iy = 0; iy < s.ny; iy++)
+	int ix, iy, ib;
+	for (ix = 0; ix < s.nx; ix++)
+		for (iy = 0; iy < s.ny; iy++)
 		{
 			ip++;
-			int ib = ip * s.bpp;
+			ib = ip * s.bpp;
 			img[ib + 0] = 0;    // R
 			img[ib + 1] = 0;    // G
 			img[ib + 2] = 0;    // B
 			img[ib + 3] = 255;  // alpha
 		}
 
+	std::vector<double> lats, lons;
 	int ntrkptsum = 0;
+	double lat, lon;
 	for (int ig = 0; ig < gpxs.size(); ig++)
 	{
 		int ntrkpt = 0;
+
+		// TODO:  add verbosity option
 		std::cout << "GPX file = " << gpxs[ig] << std::endl;
 
 		pugi::xml_document doc;
@@ -204,7 +241,6 @@ int maph(int argc, char* argv[])
 
 		std::string xquery;
 		pugi::xpath_node trkpt0;
-		double lat, lon;
 		try
 		{
 			xquery = "/gpx/trk/trkseg/trkpt";
@@ -217,6 +253,9 @@ int maph(int argc, char* argv[])
 				lat = std::stod(trkpt.attribute("lat").value());
 				lon = std::stod(trkpt.attribute("lon").value());
 				//std::cout << "lat, lon = " << lat << ", " << lon << "\n";
+
+				lats.push_back(lat);
+				lons.push_back(lon);
 			}
 
 			std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
@@ -232,7 +271,41 @@ int maph(int argc, char* argv[])
 		}
 	}
 
+	//std::cout << "lats = " << lats << std::endl;
+	//std::cout << "lons = " << lons << std::endl;
+
 	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
+
+	if (s.fit)
+	{
+		s.minx = *min_element(begin(lons), end(lons));
+		s.maxx = *max_element(begin(lons), end(lons));
+		s.miny = *min_element(begin(lats), end(lats));
+		s.maxy = *max_element(begin(lats), end(lats));
+
+		printBounds(s);
+	}
+
+	// Line drawing
+	for (i = 0; i < ntrkptsum; i++)
+	{
+		lat = lats[i];
+		lon = lons[i];
+		ix = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
+		iy = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
+
+		//std::cout << "ix, iy = " << ix << ", " << iy << std::endl;
+
+		if (0 <= ix && ix < s.nx && 0 <= iy && iy < s.ny)
+		{
+			ip = s.nx * (s.ny - iy - 1) + ix;
+			ib = ip * s.bpp;
+
+			img[ib + 0] = 255;    // R
+			img[ib + 1] = 255;    // G
+			img[ib + 2] = 255;    // B
+		}
+	}
 
 	int io = save_png(img, s.nx, s.ny, "test.png");
 

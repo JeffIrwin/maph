@@ -25,6 +25,14 @@ const int ERR_XML_OPEN  = -3;
 const int ERR_XML_PARSE = -4;
 const int ERR_PNG       = -5;
 
+class XPathException: public std::exception
+{
+  virtual const char* what() const throw()
+  {
+    return "No match for XPath expression.";
+  }
+} xPathException;
+
 template<class T> std::ostream& operator<<(std::ostream& stream, const std::vector<T>& values)
 {
 	// cout (or other stream) << a vector
@@ -75,7 +83,7 @@ int save_png(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 	unsigned error = lodepng::encode(imageBuffer, b, nx, ny);
 	if (error)
 	{
-		std::cout << "PNG encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
+		std::cout << "\nError: PNG encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
 		return ERR_PNG;
 	}
 	lodepng::save_file(imageBuffer, f);
@@ -98,60 +106,6 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 	if (globbuf.gl_pathc > 0)
 		globfree(&globbuf);
 }
-
-//const std::regex GenerateRegex(std::string& arg)
-//{
-//	for (auto i = arg.find('*'); i != std::string::npos; i = arg.find('*', i + 2))
-//	{
-//		arg.insert(i, 1, '.');
-//	}
-//	return std::regex(arg);
-//}
-//
-//// ref (and the above):
-////    https://stackoverflow.com/questions/48427938/files-in-directory-with-wildcard-on-windows
-//
-//std::experimental::filesystem::path FindFirstFile(std::experimental::filesystem::path directory, std::experimental::filesystem::path::const_iterator& start, const std::experimental::filesystem::path::const_iterator& finish, std::string& filename)
-//{
-//	while (start != finish && start->string().find('*') == std::string::npos) {
-//		directory /= *start++;
-//	}
-//	std::experimental::filesystem::directory_iterator it(directory);
-//	std::experimental::filesystem::path result;
-//
-//	if (it != std::experimental::filesystem::directory_iterator()) {
-//		if (start == finish) {
-//			for (auto i = filename.find('.'); i != std::string::npos; i = filename.find('.', i + 2)) {
-//				filename.insert(i, 1, '\\');
-//			}
-//			const auto re = GenerateRegex(filename);
-//
-//			do {
-//				if (!std::experimental::filesystem::is_directory(it->status()) && regex_match(it->path().string(), re)) {
-//					result = *it;
-//					break;
-//				}
-//			} while (++it != std::experimental::filesystem::directory_iterator());
-//		}
-//		else {
-//			auto startstring = start->string();
-//			const auto re = GenerateRegex(startstring);
-//			//const auto re = GenerateRegex(start->string());
-//			//const std::regex *re = GenerateRegex(start->string());
-//
-//			do {
-//				if (it->is_directory() && regex_match(prev(it->path().end())->string(), re)) {
-//					result = FindFirstFile(it->path(), next(start), finish, filename);
-//
-//					if (!result.empty()) {
-//						break;
-//					}
-//				}
-//			} while (++it != std::experimental::filesystem::directory_iterator());
-//		}
-//	}
-//	return result;
-//}
 
 int maph(int argc, char* argv[])
 {
@@ -209,6 +163,8 @@ int maph(int argc, char* argv[])
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
 
+	std::cout << std::endl;
+
 	std::vector<std::string> gpxs;
 	getFiles(s.fgpx, gpxs);
 
@@ -231,6 +187,52 @@ int maph(int argc, char* argv[])
 			img[ib + 2] = 0;    // B
 			img[ib + 3] = 255;  // alpha
 		}
+
+	int ntrkptsum = 0;
+	for (int ig = 0; ig < gpxs.size(); ig++)
+	{
+		int ntrkpt = 0;
+		std::cout << "GPX file = " << gpxs[ig] << std::endl;
+
+		pugi::xml_document doc;
+		pugi::xml_parse_result result = doc.load_file(gpxs[ig].c_str());
+		if (!result)
+		{
+			std::cout << "\nError:  cannot open or parse GPX file \"" << gpxs[ig] << "\"." << std::endl;
+			return ERR_XML_OPEN;
+		}
+
+		std::string xquery;
+		pugi::xpath_node trkpt0;
+		double lat, lon;
+		try
+		{
+			xquery = "/gpx/trk/trkseg/trkpt";
+			trkpt0 = doc.select_node(xquery.c_str());
+			if (!trkpt0) throw xPathException;
+
+			for (pugi::xml_node trkpt = trkpt0.node(); trkpt; trkpt = trkpt.next_sibling("trkpt"))
+			{
+				ntrkpt++;
+				lat = std::stod(trkpt.attribute("lat").value());
+				lon = std::stod(trkpt.attribute("lon").value());
+				//std::cout << "lat, lon = " << lat << ", " << lon << "\n";
+			}
+
+			std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
+			ntrkptsum += ntrkpt;
+
+		}
+		catch (const std::exception& e)
+		{
+			// Ignore empty GPX files with a warning.
+			std::cout << "\nWarning:  cannot parse GPX file \"" << gpxs[ig] << "\"." << std::endl;
+			std::cout << e.what() << std::endl;
+			//return ERR_XML_PARSE;
+		}
+	}
+
+	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
 
 	int io = save_png(img, s.nx, s.ny, "test.png");
 

@@ -42,6 +42,21 @@ template<class T> std::ostream& operator<<(std::ostream& stream, const std::vect
 	return stream;
 }
 
+template <typename T> std::vector<unsigned int> sortidx(const std::vector<T>& v)
+{
+	// Instead of sorting a vector v, sort an index array that gives
+	// the ascending sorted values v[idx[0: ]].
+
+	// initialize original index locations
+	std::vector<unsigned int> idx(v.size());
+	std::iota(idx.begin(), idx.end(), 0);
+
+	// sort indices based on comparing values in v
+	std::sort(idx.begin(), idx.end(), [&v](unsigned int i1, unsigned int i2) {return v[i1] < v[i2];});
+
+	return idx;
+}
+
 class Settings
 {
 	public:
@@ -119,6 +134,132 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 	// Free the globbuf structure
 	if (globbuf.gl_pathc > 0)
 		globfree(&globbuf);
+}
+
+std::vector<uint8_t> map(double y)
+{
+	// TODO:  inputs
+	int imap = 7;
+	bool inv = false;
+	double nanr = 0.0, nang = 0.0, nanb = 0.0;
+
+	// Almost, we need to floor result
+	const float twofivesix = 255.999;
+
+	// Map y in range [0, 1] (clipped if outside) to an RGB triple
+	// in range [0, 255].
+
+	std::vector<uint8_t> rgb(3);
+
+	// Map out-of-range values to NaN color.
+	if (y > 1.0)
+	{
+		rgb[0] = twofivesix * nanr;
+		rgb[1] = twofivesix * nang;
+		rgb[2] = twofivesix * nanb;
+		return rgb;
+	}
+
+	y = std::min(std::max(y, 0.0), 1.0);
+
+	if (inv)
+		y = 1 - y;
+
+	//// Note, using a function like sqrt here can skew the map
+	//// towards the 255 end of the spectrum, while squaring can shift
+	//// towards 0.
+	//
+	// TODO:  make an option for the exponent here.  It's useful for
+	// things like black-to-red where the bright reds are
+	// imperceptibly different from one another and a larger
+	// exponent (e.g. 3 or 4) is helpful, while for HSV 1 is OK.
+	//
+	//y = sqrt(y);
+	//y = y * y * y * y;
+	if (0 <= imap && imap < 3)
+	{
+		// Black-to-(red|green|blue) map
+		//            0    1     2
+		rgb[imap] = y * twofivesix;
+	}
+	else if (3 <= imap && imap < 6)
+	{
+		// (cyan|magenta|yellow)-to-white map
+		//    3     4       5
+		rgb = {255, 255, 255};
+		rgb[imap - 3] = y * twofivesix;
+	}
+	else
+	{
+		// HSV
+		uint8_t c = 255;
+		double hp = 6.0 * y;
+		uint8_t xu = twofivesix * (1.0 - abs(fmod(hp, 2.0) - 1.0));
+		if (hp < 1.0)
+			rgb = {c, xu, 0};
+		else if (hp < 2.0)
+			rgb = {xu, c, 0};
+		else if (hp < 3.0)
+			rgb = {0, c, xu};
+		else if (hp < 4.0)
+			rgb = {0, xu, c};
+		else if (hp < 5.0)
+			rgb = {xu, 0, c};
+		else
+			rgb = {c, 0, xu};
+	}
+
+	//std::cout << "y = " << y << "\n";
+	//std::cout << "rgb = " << rgb << "\n";
+
+	return rgb;
+}
+
+void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const std::vector<unsigned int>& idx, std::vector<uint8_t>& b)
+{
+	double x, x0;
+	x0 = 0.0;
+
+	// Get min, max, number of non-zeros
+	unsigned int nnonzero = 0;
+	for (int i = 0; i < s.nxy; i++)
+	{
+		if (img[i] != 0) nnonzero++;
+	}
+
+	int j = 0, n;
+	for (int i = 0; i < s.nxy; i++)
+	{
+		// Map img[idx[i]] to x in range [0, 1].
+		if (img[idx[i]] == 0)
+		{
+			// Map 0 to NaN color.  Otherwise evenly distribute.
+			x = 2.0;
+		}
+		else if (i > 0 && img[idx[i]] == img[idx[i-1]])
+		{
+			j++;
+			x = x0;
+		}
+		else
+		{
+			j++;
+			x = (double) j / nnonzero;
+		}
+		x0 = x;
+
+		// Map x to RGB triple.
+		std::vector<uint8_t> rgb = map(x);
+
+		//std::cout << "rgb = " << rgb[0] << " " << rgb[1] << " " << rgb[2] << "\n";
+
+		// Save RGB triple to pixel.
+		int ib = idx[i] * s.bpp;
+		b[ib + 0] = rgb[0];
+		b[ib + 1] = rgb[1];
+		b[ib + 2] = rgb[2];
+		b[ib + 3] = 255;     // alpha
+	}
 }
 
 int maph(int argc, char* argv[])
@@ -206,23 +347,14 @@ int maph(int argc, char* argv[])
 	//std::cout << "GPX files = " << gpxs << std::endl;
 	std::cout << "Number of GPX files = " << gpxs.size() << std::endl;
 
-	std::vector<unsigned char> img;
 	s.nxy = s.nx * s.ny;
-	img.resize(s.nxy * s.bpp);
+	std::vector<unsigned int> img(s.nxy);
+	std::vector<uint8_t> b(s.bpp * s.nxy);
 
 	// Initialize
-	int ip = 0;
-	int ix, iy, ib;
-	for (ix = 0; ix < s.nx; ix++)
-		for (iy = 0; iy < s.ny; iy++)
-		{
-			ip++;
-			ib = ip * s.bpp;
-			img[ib + 0] = 0;    // R
-			img[ib + 1] = 0;    // G
-			img[ib + 2] = 0;    // B
-			img[ib + 3] = 255;  // alpha
-		}
+	int ip;
+	for (ip = 0; ip < s.nxy; ip++)
+		img[ip] = 0;
 
 	std::vector<double> lats, lons;
 	int ntrkptsum = 0;
@@ -289,28 +421,41 @@ int maph(int argc, char* argv[])
 		printBounds(s);
 	}
 
-	// Line drawing
+	// Kernel radius
+	int rad = 10;
+
+	int ix, iy, ix0, iy0;
+	unsigned int inc;
 	for (i = 0; i < ntrkptsum; i++)
 	{
 		lat = lats[i];
 		lon = lons[i];
-		ix = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
-		iy = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
+		ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
+		iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
 
-		//std::cout << "ix, iy = " << ix << ", " << iy << std::endl;
-
-		if (0 <= ix && ix < s.nx && 0 <= iy && iy < s.ny)
+		// Pyramid kernel
+		for (int dx = -rad; dx <= rad; dx++)
 		{
-			ip = s.nx * (s.ny - iy - 1) + ix;
-			ib = ip * s.bpp;
-
-			img[ib + 0] = 255;    // R
-			img[ib + 1] = 255;    // G
-			img[ib + 2] = 255;    // B
+			ix = ix0 + dx;
+			for (int dy = -rad; dy <= rad; dy++)
+			{
+				iy = iy0 + dy;
+				if (0 <= ix && ix < s.nx && 0 <= iy && iy < s.ny)
+				{
+					ip = s.nx * (s.ny - iy - 1) + ix;
+					inc = std::max(0, rad - abs(dx) - abs(dy));
+					img[ip] = img[ip] + inc;
+				}
+			}
 		}
 	}
+	//std::cout << img << std::endl;
 
-	int io = save_png(img, s.nx, s.ny, s.fname + s.imgext);
+	// Sort for histogram coloring.
+	auto idx = sortidx(img);
+
+	colorPixels(s, img, idx, b);
+	int io = save_png(b, s.nx, s.ny, s.fname + s.imgext);
 	return io;
 }
 

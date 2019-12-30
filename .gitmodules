@@ -7,3 +7,6 @@
 [submodule "submodules/pugixml"]
 	path = submodules/pugixml
 	url = https://github.com/JeffIrwin/pugixml
+[submodule "submodules/colormaps"]
+	path = submodules/colormaps
+	url = https://github.com/JeffIrwin/colormaps

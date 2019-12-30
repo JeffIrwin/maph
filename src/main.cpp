@@ -1,8 +1,8 @@
 
 // TODO:
 //
-//     - Cone kernel
 //     - Gaussian kernel?
+//     - Move kernel along line between trackpoints?
 //     - More colormaps
 //     - Delete lawnmowing activity
 //     - Transformation
@@ -447,7 +447,6 @@ int maph(int argc, char* argv[])
 		ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
 		iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
 
-		// Pyramid kernel
 		for (int dx = -r; dx <= r; dx++)
 		{
 			ix = ix0 + dx;
@@ -458,8 +457,13 @@ int maph(int argc, char* argv[])
 					iy = iy0 + dy;
 					if (0 <= iy && iy < s.ny)
 					{
+						//// Pyramid kernel
+						//inc = std::max(0, r - abs(dx) - abs(dy));
+
+						// Cone kernel.  A bit slower but better looking.
+						inc = std::max(0, r - (int) sqrt(dx*dx + dy*dy));
+
 						ip = s.nx * (s.ny - iy - 1) + ix;
-						inc = std::max(0, r - abs(dx) - abs(dy));
 						img[ip] = img[ip] + inc;
 					}
 				}

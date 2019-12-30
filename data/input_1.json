@@ -1,0 +1,13 @@
+{
+	"#Image size x"      : 1920,
+	"#Image size y"      : 1080,
+	"Image size x"      : 3840,
+	"Image size y"      : 2160,
+
+	"Colormap file"     : "submodules/colormaps/ColorMaps5.6.0.json",
+	"Colormap name"     : "Inferno (matplotlib)",
+
+	"GPX files"         : "scratch/export_41990488/activities/*.gpx",
+	"Verbosity"         : 0,
+	"File name prefix"  : "example-input-1a"
+}

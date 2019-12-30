@@ -13,11 +13,15 @@ endif()
 
 project(${PROJECT})
 
+set(MAPH_DIR src)
+
 set(SUBMODULE_DIR submodules)
 
 set(PNG_DIR ${SUBMODULE_DIR}/lodepng)
 set(JSON_DIR ${SUBMODULE_DIR}/json/single_include/nlohmann)
 set(XML_DIR ${SUBMODULE_DIR}/pugixml/src)
+
+include_directories(${MAPH_DIR})
 
 include_directories(${PNG_DIR})
 include_directories(${JSON_DIR})

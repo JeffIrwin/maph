@@ -1,15 +1,20 @@
 
 // TODO:
 //
+//     - Precompute kernel for optimization
 //     - Gaussian kernel?
 //     - Move kernel along line between trackpoints?
-//     - More colormaps
 //     - Delete lawnmowing activity
 //     - Transformation
 //     - Shuffling
+//     - Add test suite comparing expected PNG hash
 //     - More JSON inputs
 //     - Refactor
 //
+
+//======================================================================
+
+// Standard
 
 #include <stdio.h>
 #include <iostream>
@@ -17,10 +22,13 @@
 #include <fstream>
 #include <iterator>
 #include <algorithm>
-#include <math.h>
-#include <regex>
+//#include <regex>
 //#include <experimental/filesystem>
 #include <glob.h>
+
+//======================================================================
+
+// Third party
 
 #include <json.hpp>
 using json = nlohmann::json;
@@ -29,22 +37,16 @@ using json = nlohmann::json;
 
 #include <lodepng.h>
 
-const int twofivefive = 255;
+//======================================================================
 
-// Error return codes
-const int ERR_CMD_ARG   = -1;
-const int ERR_JSON      = -2;
-const int ERR_XML_OPEN  = -3;
-const int ERR_XML_PARSE = -4;
-const int ERR_PNG       = -5;
+// Custom
 
-class XPathException: public std::exception
-{
-  virtual const char* what() const throw()
-  {
-    return "No match for XPath expression.";
-  }
-} xPathException;
+#include <colormap.h>
+#include <xml_helper.h>
+#include <constants.h>
+#include <sort.h>
+
+//======================================================================
 
 template<class T> std::ostream& operator<<(std::ostream& stream, const std::vector<T>& values)
 {
@@ -53,49 +55,6 @@ template<class T> std::ostream& operator<<(std::ostream& stream, const std::vect
 	copy(begin(values), end(values), std::ostream_iterator<T>(stream, ", "));
 	stream << '}';
 	return stream;
-}
-
-template <typename T> std::vector<unsigned int> sortidx(const std::vector<T>& v)
-{
-	// Instead of sorting a vector v, sort an index array that gives
-	// the ascending sorted values v[idx[0: ]].
-
-	// initialize original index locations
-	std::vector<unsigned int> idx(v.size());
-	std::iota(idx.begin(), idx.end(), 0);
-
-	// sort indices based on comparing values in v
-	std::sort(idx.begin(), idx.end(), [&v](unsigned int i1, unsigned int i2) {return v[i1] < v[i2];});
-
-	return idx;
-}
-
-class Settings
-{
-	public:
-
-		int nx, ny, nxy;
-
-		bool fit;
-		double minx, maxx, miny, maxy;
-
-		std::string fname;
-		std::string fgpx;
-		int verb;
-
-		// Bytes per pixel:  RGBA
-		const int bpp = 4;
-
-		const std::string imgext = ".png";
-};
-
-void printBounds(const Settings& s)
-{
-	std::cout << "Bounds:\n\t"
-			<< s.minx << " <= x <= " << s.maxx
-			<< "\n\t"
-			<< s.miny << " <= y <= " << s.maxy
-			<< std::endl;
 }
 
 template <typename T> T loadJsonOrDefault(std::string id, T dflt, json j)
@@ -149,83 +108,34 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 		globfree(&globbuf);
 }
 
-std::vector<uint8_t> map(double y)
+class Settings
 {
-	// TODO:  inputs
-	int imap = 6;
-	bool inv = false;
-	double nanr = 0.0, nang = 0.0, nanb = 0.0;
+	public:
 
-	// Almost, we need to floor result
-	const float twofivesix = 255.999;
+	int nx, ny, nxy;
 
-	// Map y in range [0, 1] (clipped if outside) to an RGB triple
-	// in range [0, 255].
+	bool fit;
+	double minx, maxx, miny, maxy;
 
-	std::vector<uint8_t> rgb(3);
+	std::string fname;
+	std::string fgpx;
+	int verb;
 
-	// Map out-of-range values to NaN color.
-	if (y > 1.0)
-	{
-		rgb[0] = twofivesix * nanr;
-		rgb[1] = twofivesix * nang;
-		rgb[2] = twofivesix * nanb;
-		return rgb;
-	}
+	ColorMap c;
 
-	y = std::min(std::max(y, 0.0), 1.0);
+	// Bytes per pixel:  RGBA
+	const int bpp = 4;
 
-	if (inv)
-		y = 1 - y;
+	const std::string imgext = ".png";
+};
 
-	//// Note, using a function like sqrt here can skew the map
-	//// towards the 255 end of the spectrum, while squaring can shift
-	//// towards 0.
-	//
-	// TODO:  make an option for the exponent here.  It's useful for
-	// things like black-to-red where the bright reds are
-	// imperceptibly different from one another and a larger
-	// exponent (e.g. 3 or 4) is helpful, while for HSV 1 is OK.
-	//
-	//y = sqrt(y);
-	//y = y * y * y * y;
-	if (0 <= imap && imap < 3)
-	{
-		// Black-to-(red|green|blue) map
-		//            0    1     2
-		rgb[imap] = y * twofivesix;
-	}
-	else if (3 <= imap && imap < 6)
-	{
-		// (cyan|magenta|yellow)-to-white map
-		//    3     4       5
-		rgb = {twofivefive, twofivefive, twofivefive};
-		rgb[imap - 3] = y * twofivesix;
-	}
-	else
-	{
-		// HSV
-		uint8_t c = twofivefive;
-		double hp = 6.0 * y;
-		uint8_t xu = twofivesix * (1.0 - abs(fmod(hp, 2.0) - 1.0));
-		if (hp < 1.0)
-			rgb = {c, xu, 0};
-		else if (hp < 2.0)
-			rgb = {xu, c, 0};
-		else if (hp < 3.0)
-			rgb = {0, c, xu};
-		else if (hp < 4.0)
-			rgb = {0, xu, c};
-		else if (hp < 5.0)
-			rgb = {xu, 0, c};
-		else
-			rgb = {c, 0, xu};
-	}
-
-	//std::cout << "y = " << y << "\n";
-	//std::cout << "rgb = " << rgb << "\n";
-
-	return rgb;
+void printBounds(const Settings& s)
+{
+	std::cout << "Bounds:\n\t"
+			<< s.minx << " <= x <= " << s.maxx
+			<< "\n\t"
+			<< s.miny << " <= y <= " << s.maxy
+			<< std::endl;
 }
 
 void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const std::vector<unsigned int>& idx, std::vector<uint8_t>& b)
@@ -263,7 +173,7 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		x0 = x;
 
 		// Map x to RGB triple.
-		std::vector<uint8_t> rgb = map(x);
+		std::vector<uint8_t> rgb = s.c.map(x);
 
 		//std::cout << "rgb = " << rgb[0] << " " << rgb[1] << " " << rgb[2] << "\n";
 
@@ -278,7 +188,6 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 
 int maph(int argc, char* argv[])
 {
-
 	std::cout << std::setprecision(16);
 	std::string fjson;
 
@@ -343,10 +252,28 @@ int maph(int argc, char* argv[])
 	const std::string fgpxDflt = "*.gpx";
 	s.fgpx = loadJsonOrDefault(fgpxId, fgpxDflt, inj);
 
+	const std::string cmapFileId = "Colormap file";
+	const std::string cmapFileDflt = "";
+	std::string cmapFile = loadJsonOrDefault(cmapFileId, cmapFileDflt, inj);
+
+	const std::string cmapNameId = "Colormap name";
+	const std::string cmapNameDflt = "";
+	std::string cmapName = loadJsonOrDefault(cmapNameId, cmapNameDflt, inj);
+
+	const std::string imapId = "Color map";
+	s.c.imap = loadJsonOrDefault(imapId, -1, inj);
+
+	const std::string invertMapId = "Invert color map";
+	s.c.inv = loadJsonOrDefault(invertMapId, false, inj);
+
 	// Echo inputs
 	std::cout << "Image size" << " = " << s.nx << ", " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
+	std::cout << cmapFileId << " = \"" << cmapFile << "\"\n";
+	std::cout << cmapNameId << " = \"" << cmapName << "\"\n";
+	std::cout << imapId << " = " << s.c.imap << "\n";
+	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
@@ -354,6 +281,13 @@ int maph(int argc, char* argv[])
 		printBounds(s);
 
 	std::cout << std::endl;
+
+	s.c.paraView = cmapFile != "" && cmapName != "";
+	if (s.c.paraView)
+	{
+		int io = s.c.load(cmapFile, cmapName);
+		if (io != 0) return io;
+	}
 
 	std::vector<std::string> gpxs;
 	getFiles(s.fgpx, gpxs);

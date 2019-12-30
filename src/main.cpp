@@ -1,3 +1,16 @@
+
+// TODO:
+//
+//     - Cone kernel
+//     - Gaussian kernel?
+//     - More colormaps
+//     - Delete lawnmowing activity
+//     - Transformation
+//     - Shuffling
+//     - More JSON inputs
+//     - Refactor
+//
+
 #include <stdio.h>
 #include <iostream>
 #include <iomanip>
@@ -6,7 +19,7 @@
 #include <algorithm>
 #include <math.h>
 #include <regex>
-#include <experimental/filesystem>
+//#include <experimental/filesystem>
 #include <glob.h>
 
 #include <json.hpp>
@@ -16,7 +29,7 @@ using json = nlohmann::json;
 
 #include <lodepng.h>
 
-const double pi = 4.0 * atan(1.0);
+const int twofivefive = 255;
 
 // Error return codes
 const int ERR_CMD_ARG   = -1;
@@ -73,7 +86,7 @@ class Settings
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
 
-		const std::string dlm = "_", imgext = ".png";
+		const std::string imgext = ".png";
 };
 
 void printBounds(const Settings& s)
@@ -139,7 +152,7 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 std::vector<uint8_t> map(double y)
 {
 	// TODO:  inputs
-	int imap = 7;
+	int imap = 6;
 	bool inv = false;
 	double nanr = 0.0, nang = 0.0, nanb = 0.0;
 
@@ -186,13 +199,13 @@ std::vector<uint8_t> map(double y)
 	{
 		// (cyan|magenta|yellow)-to-white map
 		//    3     4       5
-		rgb = {255, 255, 255};
+		rgb = {twofivefive, twofivefive, twofivefive};
 		rgb[imap - 3] = y * twofivesix;
 	}
 	else
 	{
 		// HSV
-		uint8_t c = 255;
+		uint8_t c = twofivefive;
 		double hp = 6.0 * y;
 		uint8_t xu = twofivesix * (1.0 - abs(fmod(hp, 2.0) - 1.0));
 		if (hp < 1.0)
@@ -234,6 +247,7 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		if (img[idx[i]] == 0)
 		{
 			// Map 0 to NaN color.  Otherwise evenly distribute.
+			// TODO:  add option to use 0 color without affecting histogram.
 			x = 2.0;
 		}
 		else if (i > 0 && img[idx[i]] == img[idx[i-1]])
@@ -258,7 +272,7 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		b[ib + 0] = rgb[0];
 		b[ib + 1] = rgb[1];
 		b[ib + 2] = rgb[2];
-		b[ib + 3] = 255;     // alpha
+		b[ib + 3] = twofivefive;     // alpha
 	}
 }
 
@@ -421,8 +435,8 @@ int maph(int argc, char* argv[])
 		printBounds(s);
 	}
 
-	// Kernel radius
-	int rad = 10;
+	// Kernel radius (pixels)
+	int r = 10;
 
 	int ix, iy, ix0, iy0;
 	unsigned int inc;
@@ -434,22 +448,26 @@ int maph(int argc, char* argv[])
 		iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
 
 		// Pyramid kernel
-		for (int dx = -rad; dx <= rad; dx++)
+		for (int dx = -r; dx <= r; dx++)
 		{
 			ix = ix0 + dx;
-			for (int dy = -rad; dy <= rad; dy++)
+			if (0 <= ix && ix < s.nx)
 			{
-				iy = iy0 + dy;
-				if (0 <= ix && ix < s.nx && 0 <= iy && iy < s.ny)
+				for (int dy = -r; dy <= r; dy++)
 				{
-					ip = s.nx * (s.ny - iy - 1) + ix;
-					inc = std::max(0, rad - abs(dx) - abs(dy));
-					img[ip] = img[ip] + inc;
+					iy = iy0 + dy;
+					if (0 <= iy && iy < s.ny)
+					{
+						ip = s.nx * (s.ny - iy - 1) + ix;
+						inc = std::max(0, r - abs(dx) - abs(dy));
+						img[ip] = img[ip] + inc;
+					}
 				}
 			}
 		}
 	}
 	//std::cout << img << std::endl;
+	//return 0;  // for benchmarking kernel convolution
 
 	// Sort for histogram coloring.
 	auto idx = sortidx(img);
@@ -468,6 +486,7 @@ int main(int argc, char* argv[])
 
 	if (argc < 2)
 	{
+		// TODO:  move to maph()
 		std::cout << "Usage:" << std::endl;
 		std::cout << "\t" << me << " input.json" << std::endl;
 		return ERR_CMD_ARG;

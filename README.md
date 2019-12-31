@@ -51,3 +51,10 @@ Maph will write the results to a PNG file.  A couple examples are below (we did 
 ![Black-body radiation colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-2a.png)
 
 ![Blue to red rainbow colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-3a.png)
+
+## Platforms
+
+This tool has been tested on Ubuntu 18.04.3 LTS (Bionic Beaver) with gcc (Ubuntu 7.4.0-1ubuntu1\~18.04.1) 7.4.0.
+
+Other platforms and compilers may work.
+

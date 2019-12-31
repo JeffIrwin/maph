@@ -1,4 +1,4 @@
 # maph
 This isn't normal, but on maph it is
 
-Coming soon to a non-volatile storage system near you
+![Viridis colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-1a.png)

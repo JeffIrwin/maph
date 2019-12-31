@@ -19,7 +19,7 @@ Choose your colormap file and colormap name.  Otherwise, the default colormap is
 
 Set a globbed path to your GPX files.  If you don't have data, some stripped-down samples are included in [data/export\_0/](data/export_0/).
 
-By default, maph will snap to the bounds of your data.  If you have worked out in multiple cities, this won't be very helpful.  To zoom in, set lattitudes and longitudes with `Min x`, ..., `Max y`.  Google maps can be helpful for finding the coordinates that you want.
+By default, maph will snap to the bounds of your data.  If you have worked out in multiple cities, this won't be very helpful.  To zoom in, set lattitudes (y) and longitudes (x) with `Min x`, ..., `Max y`.  Google maps can be helpful for finding the coordinates that you want.
 
 Here is an example:
 

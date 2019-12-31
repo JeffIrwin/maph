@@ -4,8 +4,6 @@
 //     - Precompute kernel for optimization
 //     - Gaussian kernel?
 //     - Move kernel along line between trackpoints?
-//     - Delete lawnmowing activity
-//     - Transformation
 //     - Shuffling
 //     - Add test suite comparing expected PNG hash
 //     - More JSON inputs
@@ -25,6 +23,13 @@
 //#include <regex>
 //#include <experimental/filesystem>
 #include <glob.h>
+
+// mkdir
+#if defined(_WIN32) || defined(_WIN64)
+	#include <direct.h>
+#else
+	#include <sys/stat.h>
+#endif
 
 //======================================================================
 
@@ -47,6 +52,8 @@ using json = nlohmann::json;
 #include <sort.h>
 
 //======================================================================
+
+const std::string me = "maph";
 
 template<class T> std::ostream& operator<<(std::ostream& stream, const std::vector<T>& values)
 {
@@ -186,22 +193,55 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 	}
 }
 
+int usage()
+{
+	std::cout << "Usage:" << std::endl;
+	std::cout << "\t" << me << " input.json [-t dir xshift yshift rot]" << std::endl;
+	return ERR_CMD_ARG;
+}
+
 int maph(int argc, char* argv[])
 {
 	std::cout << std::setprecision(16);
 	std::string fjson;
 
+	std::string transdir;
+	bool trans = false;
+	double transx, transy, transd;
+
+	if (argc < 2)
+	{
+		return usage();
+	}
+
 	int i = 0;
 	while (i < argc - 1)
 	{
-		i++;
-		std::string str = argv[i];
-		if (str == "-t")
+		try
 		{
-			// TODO:  transformation args
+			std::string str = argv[++i];
+			if (str == "-t")
+			{
+				// Transformation args
+				trans = true;
+				transdir = argv[++i];
+				std::cout << "Transformation directory = \"" << transdir << "\".\n";
+				transx = std::stod(argv[++i]);
+				transy = std::stod(argv[++i]);
+				transd = std::stod(argv[++i]);
+				std::cout << "X translation = " << transx << "\n";
+				std::cout << "Y translation = " << transy << "\n";
+				std::cout << "Rotation      = " << transd << "\n";
+				std::cout << std::endl;
+			}
+			else
+				fjson = str;
 		}
-		else
-			fjson = str;
+		catch (const std::exception& e)
+		{
+			std::cout << e.what() << std::endl;
+			return usage();
+		}
 	}
 
 	std::ifstream ifs(fjson);
@@ -304,6 +344,25 @@ int maph(int argc, char* argv[])
 	for (ip = 0; ip < s.nxy; ip++)
 		img[ip] = 0;
 
+	std::vector<double> rmat(4);
+	if (trans)
+	{
+		// Get rotation matrix
+		transd *= pi / 180.0;  // degrees to radians
+		rmat[0] =  std::cos(transd);
+		rmat[1] =  std::sin(transd);
+		rmat[2] = -std::sin(transd);
+		rmat[3] =  std::cos(transd);
+
+		// Make output directory
+		#if defined(_WIN32) || defined(_WIN64)
+			_mkdir(transdir.c_str());
+		#else
+			mkdir(transdir.c_str(), 0777);
+		#endif
+
+	}
+
 	std::vector<double> lats, lons;
 	int ntrkptsum = 0;
 	double lat, lon;
@@ -342,6 +401,44 @@ int maph(int argc, char* argv[])
 
 			if (s.verb > 0) std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
 
+			if (trans)
+			{
+				// TODO:  Windows
+				std::string fogpx = transdir + "/" + gpxs[ig].substr(gpxs[ig].find_last_of("/") + 1);
+
+				if (s.verb > 0) std::cout << "fogpx = " << fogpx << std::endl;
+
+				std::ofstream ofgpx(fogpx);
+				ofgpx << "<gpx>\n";
+				ofgpx << "\t<trk>\n";
+				ofgpx << "\t\t<trkseg>\n";
+
+				for (int it = 0; it < ntrkpt; it++)
+				{
+					// Translate
+					lons[i] += transx;
+					lats[i] += transy;
+
+					// Rotate
+					lon = rmat[0] * lons[i] + rmat[1] * lats[i];
+					lat = rmat[2] * lons[i] + rmat[3] * lats[i];
+
+					ofgpx << "\t\t\t<trkpt lat=\"" << lat
+					                << "\" lon=\"" << lon << "\"/>\n";
+				}
+
+				lats.clear();
+				lats.shrink_to_fit();
+				lons.clear();
+				lons.shrink_to_fit();
+
+				ofgpx << "\t\t</trkseg>\n";
+				ofgpx << "\t</trk>\n";
+				ofgpx << "</gpx>\n";
+
+				ofgpx.close();
+			}
+
 			ntrkptsum += ntrkpt;
 
 		}
@@ -358,6 +455,9 @@ int maph(int argc, char* argv[])
 	//std::cout << "lons = " << lons << std::endl;
 
 	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
+
+	if (trans)
+		return 0;
 
 	if (s.fit)
 	{
@@ -417,18 +517,9 @@ int maph(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-	std::string me = "maph";
 	std::cout << std::endl;
 	std::cout << "Starting " << me << std::endl;
 	std::cout << std::endl;
-
-	if (argc < 2)
-	{
-		// TODO:  move to maph()
-		std::cout << "Usage:" << std::endl;
-		std::cout << "\t" << me << " input.json" << std::endl;
-		return ERR_CMD_ARG;
-	}
 
 	int io = maph(argc, argv);
 

@@ -350,8 +350,8 @@ int maph(int argc, char* argv[])
 		// Get rotation matrix
 		transd *= pi / 180.0;  // degrees to radians
 		rmat[0] =  std::cos(transd);
-		rmat[1] =  std::sin(transd);
-		rmat[2] = -std::sin(transd);
+		rmat[1] = -std::sin(transd);
+		rmat[2] =  std::sin(transd);
 		rmat[3] =  std::cos(transd);
 
 		// Make output directory
@@ -409,19 +409,29 @@ int maph(int argc, char* argv[])
 				if (s.verb > 0) std::cout << "fogpx = " << fogpx << std::endl;
 
 				std::ofstream ofgpx(fogpx);
+				ofgpx << std::setprecision(16);
 				ofgpx << "<gpx>\n";
 				ofgpx << "\t<trk>\n";
 				ofgpx << "\t\t<trkseg>\n";
 
+				// Shuffle
+				std::vector<unsigned int> id(ntrkpt);
+				for (unsigned int i = 0; i < ntrkpt; i++)
+					id[i] = i;
+				std::random_shuffle(id.begin(), id.end());
+				//std::cout << "id = " << id << std::endl;
+
 				for (int it = 0; it < ntrkpt; it++)
 				{
+					unsigned int j = id[it];
+
 					// Translate
-					lons[i] += transx;
-					lats[i] += transy;
+					lons[j] += transx;
+					lats[j] += transy;
 
 					// Rotate
-					lon = rmat[0] * lons[i] + rmat[1] * lats[i];
-					lat = rmat[2] * lons[i] + rmat[3] * lats[i];
+					lon = rmat[0] * lons[j] + rmat[1] * lats[j];
+					lat = rmat[2] * lons[j] + rmat[3] * lats[j];
 
 					ofgpx << "\t\t\t<trkpt lat=\"" << lat
 					                << "\" lon=\"" << lon << "\"/>\n";

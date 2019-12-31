@@ -1,6 +1,10 @@
 {
 	"Image size x"      : 1920,
 	"Image size y"      : 1080,
-	"GPX files"         : "scratch/export_41990488/activities/*.gpx",
+	"GPX files"         : "data/export_0/activities/*.gpx",
+	"Min x"             : -80.95,
+	"Max x"             : -80.857,
+	"Min y"             : -14.414,
+	"Max y"             : -14.30,
 	"File name prefix"  : "example-input-0a"
 }

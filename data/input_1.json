@@ -7,7 +7,12 @@
 	"Colormap file"     : "submodules/colormaps/ColorMaps5.6.0.json",
 	"Colormap name"     : "Inferno (matplotlib)",
 
-	"GPX files"         : "scratch/export_41990488/activities/*.gpx",
+	"GPX files"         : "data/export_0/activities/*.gpx",
+	"Min x"             : -80.95,
+	"Max x"             : -80.857,
+	"Min y"             : -14.414,
+	"Max y"             : -14.30,
+
 	"Verbosity"         : 0,
-	"File name prefix"  : "example-input-1a"
+	"File name prefix"  : "example-input-1c"
 }

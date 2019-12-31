@@ -1,6 +1,8 @@
 # maph
 *This isn't normal, but on maph it is*
 
+Make a heatmap of everywhere you've worked out from Strava.
+
 ## Compile
 
 Use CMake, or just run `build.sh` on Linux.
@@ -15,19 +17,37 @@ Be careful!  This contains sensitive personal data.
 
 Choose your colormap file and colormap name.  Otherwise, the default colormap is a full-spectrum red-to-red HSV rainbow.
 
-Set a globbed path to your GPX files.  If you don't have data, some stripped-down samples are included in data/export\_0/.
+Set a globbed path to your GPX files.  If you don't have data, some stripped-down samples are included in [data/export\_0/](data/export_0/).
 
 By default, maph will snap to the bounds of your data.  If you have worked out in multiple cities, this won't be very helpful.  To zoom in, set lattitudes and longitudes with `Min x`, ..., `Max y`.  Google maps can be helpful for finding the coordinates that you want.
+
+Here is an example:
+
+    {
+    	"Image size x"      : 3840,
+    	"Image size y"      : 2160,
+    
+    	"Colormap file"     : "submodules/colormaps/ColorMaps5.0.0.xml",
+    	"Colormap name"     : "Black-Body Radiation",
+    
+    	"GPX files"         : "data/export_0/activities/*.gpx",
+    	"Min x"             : -80.95,
+    	"Max x"             : -80.857,
+    	"Min y"             : -14.414,
+    	"Max y"             : -14.30,
+    
+    	"Verbosity"         : 0,
+    	"File name prefix"  : "example-2a"
+    }
 
 ## Run
 
     ./target/maph data/input_1.json
 
-Maph will write the results to a PNG file.  A couple examples are below:
+Maph will write the results to a PNG file.  A couple examples are below (we did the maph):
 
 ![Viridis colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-1a.png)
 
 ![Black-body radiation colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-2a.png)
 
 ![Blue to red rainbow colormap](https://raw.githubusercontent.com/JeffIrwin/maph/master/data/expected-output/example-3a.png)
-

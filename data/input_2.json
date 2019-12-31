@@ -1,11 +1,9 @@
 {
-	"#Image size x"      : 1920,
-	"#Image size y"      : 1080,
 	"Image size x"      : 3840,
 	"Image size y"      : 2160,
 
-	"Colormap file"     : "submodules/colormaps/ColorMaps5.6.0.json",
-	"Colormap name"     : "Viridis (matplotlib)",
+	"Colormap file"     : "submodules/colormaps/ColorMaps5.0.0.xml",
+	"Colormap name"     : "Black-Body Radiation",
 
 	"GPX files"         : "data/export_0/activities/*.gpx",
 	"Min x"             : -80.95,
@@ -14,5 +12,5 @@
 	"Max y"             : -14.30,
 
 	"Verbosity"         : 0,
-	"File name prefix"  : "example-input-1a"
+	"File name prefix"  : "example-input-2a"
 }

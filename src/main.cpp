@@ -4,7 +4,6 @@
 //     - Precompute kernel for optimization
 //     - Gaussian kernel?
 //     - Move kernel along line between trackpoints?
-//     - Shuffling
 //     - Add test suite comparing expected PNG hash
 //     - More JSON inputs
 //     - Refactor
@@ -163,9 +162,13 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		// Map img[idx[i]] to x in range [0, 1].
 		if (img[idx[i]] == 0)
 		{
-			// Map 0 to NaN color.  Otherwise evenly distribute.
-			// TODO:  add option to use 0 color without affecting histogram.
-			x = 2.0;
+			// TODO:  add input option
+
+			//// Map 0 to NaN color.  Otherwise evenly distribute.
+			//x = 2.0;
+
+			// Leave 0 as is
+			x = 0.0;
 		}
 		else if (i > 0 && img[idx[i]] == img[idx[i-1]])
 		{

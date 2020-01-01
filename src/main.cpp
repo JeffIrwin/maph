@@ -149,7 +149,7 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 	double x, x0;
 	x0 = 0.0;
 
-	// Get min, max, number of non-zeros
+	// Number of non-zeros
 	unsigned int nnonzero = 0;
 	for (int i = 0; i < s.nxy; i++)
 	{

@@ -120,7 +120,7 @@ class Settings
 
 	int nx, ny, nxy;
 
-	bool fit;
+	bool fit, fity;
 	double minx, maxx, miny, maxy;
 
 	std::string fname;
@@ -285,6 +285,9 @@ int maph(int argc, char* argv[])
 	const std::string maxyId = "Max y";
 	s.maxy = loadJsonOrDefault(maxyId, 0.0, inj);
 
+	const std::string fityId = "Fit y";
+	s.fity = loadJsonOrDefault(fityId, false, inj);
+
 	s.fit = s.minx == s.maxx && s.miny == s.maxy;
 
 	const std::string fnameId = "File name prefix";
@@ -318,6 +321,7 @@ int maph(int argc, char* argv[])
 	std::cout << imapId << " = " << s.c.imap << "\n";
 	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
+	std::cout << fityId << " = " << s.fity << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
 	if (!s.fit)
@@ -478,9 +482,19 @@ int maph(int argc, char* argv[])
 		s.maxx = *max_element(begin(lons), end(lons));
 		s.miny = *min_element(begin(lats), end(lats));
 		s.maxy = *max_element(begin(lats), end(lats));
-
-		printBounds(s);
 	}
+
+	if (s.fity)
+	{
+		double avgy = 0.5 * (s.miny + s.maxy);
+		double difx = s.maxx - s.minx;
+		double dify = cos(avgy * pi / 180.0) * s.ny / s.nx * difx;
+		s.miny = avgy - 0.5 * dify;
+		s.maxy = avgy + 0.5 * dify;
+	}
+
+	if (s.fit || s.fity)
+		printBounds(s);
 
 	// Kernel radius (pixels)
 	int r = 10;

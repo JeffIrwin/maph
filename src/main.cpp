@@ -4,7 +4,6 @@
 //     - Precompute kernel for optimization
 //     - Gaussian kernel?
 //     - Move kernel along line between trackpoints?
-//     - Add test suite comparing expected PNG hash
 //     - More JSON inputs
 //     - Refactor
 //
@@ -291,7 +290,7 @@ int maph(int argc, char* argv[])
 	s.fit = s.minx == s.maxx && s.miny == s.maxy;
 
 	const std::string fnameId = "File name prefix";
-	const std::string fnameDflt = fjson;
+	const std::string fnameDflt = fjson.substr(0, fjson.find_last_of("."));
 	s.fname = loadJsonOrDefault(fnameId, fnameDflt, inj);
 
 	const std::string fgpxId = "GPX files";

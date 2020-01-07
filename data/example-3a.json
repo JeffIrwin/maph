@@ -5,7 +5,7 @@
 	"Image size y"      : 2160,
 
 	"Colormap file"     : "submodules/colormaps/ColorMaps5.6.0.json",
-	"Colormap name"     : "Viridis (matplotlib)",
+	"Colormap name"     : "Blue to Red Rainbow",
 
 	"GPX files"         : "data/export_0/activities/*.gpx",
 	"Min x"             : -80.95,
@@ -13,6 +13,5 @@
 	"Min y"             : -14.414,
 	"Max y"             : -14.30,
 
-	"Verbosity"         : 0,
-	"File name prefix"  : "example-1a"
+	"Verbosity"         : 0
 }

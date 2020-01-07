@@ -21,7 +21,10 @@
 #include <algorithm>
 //#include <regex>
 //#include <experimental/filesystem>
-#include <glob.h>
+
+#if !(defined(_WIN32) || defined(_WIN64))
+	#include <glob.h>
+#endif
 
 // mkdir
 #if defined(_WIN32) || defined(_WIN64)
@@ -97,9 +100,50 @@ int save_png(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 	return 0;
 }
 
-// Linux only?
-void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
+void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 {
+#if defined(_WIN32) || defined(_WIN64)
+
+	std::replace(pattern.begin(), pattern.end(), '/', '\\');
+
+	//std::cout << "pattern = " << pattern << std::endl;
+
+	// Wildcard globbing only works on Windows after the last
+	// directory separator and only with a single wildcard.
+	std::string dir = pattern.substr(0, pattern.find_last_of("\\"));
+
+	//std::cout << "dir = " << dir << std::endl;
+
+	// There are some fancy Windows API methods for calling dir, but
+	// they don't work with wildcards!
+	std::string ftmp = std::tmpnam(nullptr);
+	//std::cout << "ftmp = " << ftmp << std::endl;
+	std::string cmd = (std::string) "dir /b " + pattern + " > " + ftmp;
+	//std::cout << "cmd = " << cmd << std::endl;
+	system(cmd.c_str());
+
+	std::ifstream ifs(ftmp);
+	std::string line;
+	while (std::getline(ifs, line))
+	{
+		// Dir lists the filename but not its path, so we need to
+		// add it back.
+
+		//std::cout << "line = " << line << std::endl;
+		fileList.push_back(dir + "\\" + line);
+	}
+
+	ifs.close();
+	cmd = (std::string) "del " + ftmp;
+	system(cmd.c_str());
+
+	//for (int i = 0; i < fileList.size(); i++)
+	//{
+	//	std::cout << "file = " << fileList[i] << std::endl;
+	//}
+
+#else
+
 	//Declare glob_t for storing the results of globbing
 	glob_t globbuf;
 
@@ -112,6 +156,8 @@ void getFiles(const std::string &pattern, std::vector<std::string> &fileList)
 	// Free the globbuf structure
 	if (globbuf.gl_pathc > 0)
 		globfree(&globbuf);
+
+#endif
 }
 
 class Settings

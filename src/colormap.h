@@ -16,7 +16,7 @@
 
 //======================================================================
 
-const int twofivefive = 255;
+const unsigned char twofivefive = 255;
 
 std::vector<float> rgb2xyz(const std::vector<float>& rgb)
 {

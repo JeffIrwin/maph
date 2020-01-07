@@ -5,7 +5,7 @@ Make a heatmap of everywhere you've worked out from Strava.
 
 ## Compile
 
-Use CMake, or just run `build.sh` on Linux.
+Use CMake, or just run `build.sh` on Linux or `build.cmd` on Windows.
 
 ## Download your bulk GPX data from Strava
 

@@ -19,7 +19,11 @@ TARGET=target
 mkdir -p $TARGET
 pushd $TARGET
 
-CMAKE="/c/Program Files/cmake/bin/cmake.exe"
+if [[ -x "$(which cmake)" ]]; then
+	CMAKE=cmake
+else
+	CMAKE="/c/Program Files/cmake/bin/cmake.exe"
+fi
 
 "$CMAKE" .. -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
 

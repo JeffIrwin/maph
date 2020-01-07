@@ -1,5 +1,21 @@
 #!/bin/bash
 
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     machine=Linux;;
+    Darwin*)    machine=Mac;;
+    CYGWIN*)    machine=Cygwin;;
+    MINGW*)     machine=MinGw;;
+    *)          machine="UNKNOWN:${unameOut}"
+esac
+echo ${machine}
+
+if [[ $machine == "Linux" || $machine == "Mac" ]]; then
+	target=./target
+else
+	target=./target/Release
+fi
+
 ./clean.sh
 ./build.sh
 
@@ -23,8 +39,15 @@ for j in ./data/*.json; do
 
 	ntotal=$((ntotal + 1))
 	rm "$p"
-	./target/maph "$j"
+	${target}/maph "$j"
+
+	if [[ "$?" != "0" ]]; then
+		nfail=$((nfail + 1))
+		echo "test.sh:  error:  cannot run test $j"
+	fi
+
 	diff ./data/expected-output/$(basename $p) $p > /dev/null
+
 	if [[ "$?" == "1" ]]; then
 		nfail=$((nfail + 1))
 		echo "test.sh:  error:  difference in $j"

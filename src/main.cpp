@@ -87,7 +87,7 @@ template <typename T> T loadJsonOrDefault(std::string id, T dflt, json j)
 
 int save_png(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 {
-	std::cout << "Writing file \"" << f << "\"..." << std::endl;
+	std::cout << "Writing file \"" << f << "\" ..." << std::endl;
 	std::vector<uint8_t> imageBuffer;
 	unsigned error = lodepng::encode(imageBuffer, b, nx, ny);
 	if (error)
@@ -105,20 +105,14 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 
 	std::replace(pattern.begin(), pattern.end(), '/', '\\');
 
-	//std::cout << "pattern = " << pattern << std::endl;
-
 	// Wildcard globbing only works on Windows after the last
 	// directory separator and only with a single wildcard.
 	std::string dir = pattern.substr(0, pattern.find_last_of("\\"));
 
-	//std::cout << "dir = " << dir << std::endl;
-
 	// There are some fancy Windows API methods for calling dir, but
 	// they don't work with wildcards!
 	std::string ftmp = std::tmpnam(nullptr);
-	//std::cout << "ftmp = " << ftmp << std::endl;
 	std::string cmd = (std::string) "dir /b " + pattern + " > " + ftmp;
-	//std::cout << "cmd = " << cmd << std::endl;
 	system(cmd.c_str());
 
 	std::ifstream ifs(ftmp);
@@ -127,8 +121,6 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 	{
 		// Dir lists the filename but not its path, so we need to
 		// add it back.
-
-		//std::cout << "line = " << line << std::endl;
 		fileList.push_back(dir + "\\" + line);
 	}
 
@@ -136,14 +128,9 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 	cmd = (std::string) "del " + ftmp;
 	system(cmd.c_str());
 
-	//for (int i = 0; i < fileList.size(); i++)
-	//{
-	//	std::cout << "file = " << fileList[i] << std::endl;
-	//}
-
 #else
 
-	//Declare glob_t for storing the results of globbing
+	// Declare glob_t for storing the results of globbing
 	glob_t globbuf;
 
 	// Glob. GLOB_TILDE tells the globber to expand "~" in the pattern to the home directory

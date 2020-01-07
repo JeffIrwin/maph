@@ -19,9 +19,11 @@ TARGET=target
 mkdir -p $TARGET
 pushd $TARGET
 
-cmake .. -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+CMAKE="/c/Program Files/cmake/bin/cmake.exe"
 
-cmake --build . --config $BTYPE
+"$CMAKE" .. -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+
+"$CMAKE" --build . --config $BTYPE
 
 # from TARGET
 popd

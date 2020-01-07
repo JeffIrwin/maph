@@ -54,7 +54,11 @@ Maph will write the results to a PNG file.  A couple examples are below (we did 
 
 ## Platforms
 
-This tool has been tested on Ubuntu 18.04.3 LTS (Bionic Beaver) with gcc (Ubuntu 7.4.0-1ubuntu1\~18.04.1) 7.4.0.
+This tool has been tested on:
+- MSVC 19.0.24215.1 (Visual Studio 14 2015)
+- MSVC 19.15.26726.0 (Visual Studio 15 2017)
+- MSVC 19.24.28314.0 (Visual Studio 16 2019)
+- Ubuntu 18.04.3 LTS (Bionic Beaver) with gcc (Ubuntu 7.4.0-1ubuntu1\~18.04.1) 7.4.0
 
 Other platforms and compilers may work.
 

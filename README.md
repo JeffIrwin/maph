@@ -41,8 +41,13 @@ Here is an example:
     }
 
 ## Run
+Linux:
 
-    ./target/maph data/input_1.json
+    ./target/maph data/example-1a.json
+    
+Windows:
+
+    .\target\Release\maph.exe data\example-1a.json
 
 Maph will write the results to a PNG file.  A couple examples are below (we did the maph):
 

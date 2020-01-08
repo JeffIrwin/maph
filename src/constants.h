@@ -2,6 +2,12 @@
 #ifndef INCLUDE_CONSTANTS_H_
 #define INCLUDE_CONSTANTS_H_
 
+#if defined(_WIN32) || defined(_WIN64)
+	const std::string slash = "\\";
+#else
+	const std::string slash = "/";
+#endif
+
 const double pi = 4.0 * atan(1.0);
 
 // Error return codes

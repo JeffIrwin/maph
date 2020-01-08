@@ -1,11 +1,14 @@
 
 // TODO:
 //
+//     - Move kernel along line between trackpoints?
+//     - Refactor
 //     - Precompute kernel for optimization
 //     - Gaussian kernel?
-//     - Move kernel along line between trackpoints?
 //     - More JSON inputs
-//     - Refactor
+//         * kernel radius
+//         * kernel type
+//         * background color:  0, NaN, or other
 //
 
 //======================================================================
@@ -18,8 +21,6 @@
 #include <fstream>
 #include <iterator>
 #include <algorithm>
-//#include <regex>
-//#include <experimental/filesystem>
 
 #if !(defined(_WIN32) || defined(_WIN64))
 	#include <glob.h>
@@ -194,12 +195,10 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		// Map img[idx[i]] to x in range [0, 1].
 		if (img[idx[i]] == 0)
 		{
-			// TODO:  add input option
-
 			//// Map 0 to NaN color.  Otherwise evenly distribute.
 			//x = 2.0;
 
-			// Leave 0 as is
+			// Leave 0 as is.
 			x = 0.0;
 		}
 		else if (i > 0 && img[idx[i]] == img[idx[i-1]])
@@ -442,8 +441,7 @@ int maph(int argc, char* argv[])
 
 			if (trans)
 			{
-				// TODO:  Windows
-				std::string fogpx = transdir + "/" + gpxs[ig].substr(gpxs[ig].find_last_of("/") + 1);
+				std::string fogpx = transdir + slash + gpxs[ig].substr(gpxs[ig].find_last_of(slash) + 1);
 
 				if (s.verb > 0) std::cout << "fogpx = " << fogpx << std::endl;
 

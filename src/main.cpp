@@ -1,7 +1,6 @@
 
 // TODO:
 //
-//     - Optionally move kernel along line between trackpoints
 //     - Refactor
 //     - Gaussian kernel?
 //     - More JSON inputs
@@ -155,6 +154,12 @@ class Settings
 	bool fit, fity;
 	double minx, maxx, miny, maxy;
 
+	// Kernel radius (pixels)
+	const int r = 10;
+
+	// Kernel width
+	const int tr1 = 2 * r + 1;
+
 	std::string fname;
 	std::string fgpx;
 	int verb;
@@ -231,6 +236,32 @@ int usage()
 	std::cout << "Usage:" << std::endl;
 	std::cout << "\t" << me << " input.json [-t dir xshift yshift rot]" << std::endl;
 	return ERR_CMD_ARG;
+}
+
+void addKernel(const Settings& s, double lat, double lon, std::vector<unsigned int>& img, std::vector<unsigned int>& kernel)
+{
+	int ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
+	int iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
+
+	for (int dx = -s.r; dx <= s.r; dx++)
+	{
+		int ix = ix0 + dx;
+		if (0 <= ix && ix < s.nx)
+		{
+			int dxr = dx + s.r;
+			for (int dy = -s.r; dy <= s.r; dy++)
+			{
+				int iy = iy0 + dy;
+				if (0 <= iy && iy < s.ny)
+				{
+					int dyr = dy + s.r;
+					int ik = s.tr1 * (s.tr1 - dyr - 1) + dxr;
+					int ip = s.nx  * (s.ny  - iy  - 1) + ix ;
+					img[ip] += kernel[ik];
+				}
+			}
+		}
+	}
 }
 
 int maph(int argc, char* argv[])
@@ -522,65 +553,34 @@ int maph(int argc, char* argv[])
 	if (s.fit || s.fity)
 		printBounds(s);
 
-	// Kernel radius (pixels)
-	int r = 10;
-
-	// Kernel width
-	int tr1 = 2 * r + 1;
-
 	//std::cout << "setting kernel..." << std::endl;
 
-	std::vector<unsigned int> kernel(tr1 * tr1);
+	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
 	int ix, iy, ik;
 	unsigned int inc;
-	for (int dx = -r; dx <= r; dx++)
+	for (int dx = -s.r; dx <= s.r; dx++)
 	{
-		ix = dx + r;
-		for (int dy = -r; dy <= r; dy++)
+		ix = dx + s.r;
+		for (int dy = -s.r; dy <= s.r; dy++)
 		{
-			iy = dy + r;
+			iy = dy + s.r;
 
 			//// Pyramid kernel
-			//inc = std::max(0, r - abs(dx) - abs(dy));
+			//inc = std::max(0, s.r - abs(dx) - abs(dy));
 
 			// Cone kernel, better looking
-			inc = std::max(0, r - (int) sqrt(dx*dx + dy*dy));
+			inc = std::max(0, s.r - (int) sqrt(dx*dx + dy*dy));
 
-			ik = tr1 * (tr1 - iy - 1) + ix;
+			ik = s.tr1 * (s.tr1 - iy - 1) + ix;
 			kernel[ik] = inc;
 		}
 	}
 
 	//std::cout << "convoluting..." << std::endl;
 
-	int ix0, iy0, dxr, dyr, ip;
 	for (i = 0; i < ntrkptsum; i++)
-	{
-		lat = lats[i];
-		lon = lons[i];
-		ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
-		iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
+		addKernel(s, lats[i], lons[i], img, kernel);
 
-		for (int dx = -r; dx <= r; dx++)
-		{
-			ix = ix0 + dx;
-			if (0 <= ix && ix < s.nx)
-			{
-				dxr = dx + r;
-				for (int dy = -r; dy <= r; dy++)
-				{
-					iy = iy0 + dy;
-					if (0 <= iy && iy < s.ny)
-					{
-						dyr = dy + r;
-						ik = tr1  * (tr1  - dyr - 1) + dxr;
-						ip = s.nx * (s.ny - iy  - 1) + ix ;
-						img[ip] += kernel[ik];
-					}
-				}
-			}
-		}
-	}
 	//std::cout << img << std::endl;
 	//return 0;  // for benchmarking kernel convolution
 

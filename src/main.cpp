@@ -1,9 +1,8 @@
 
 // TODO:
 //
-//     - Move kernel along line between trackpoints?
+//     - Optionally move kernel along line between trackpoints
 //     - Refactor
-//     - Precompute kernel for optimization
 //     - Gaussian kernel?
 //     - More JSON inputs
 //         * kernel radius
@@ -223,7 +222,7 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 		b[ib + 0] = rgb[0];
 		b[ib + 1] = rgb[1];
 		b[ib + 2] = rgb[2];
-		b[ib + 3] = twofivefive;     // alpha
+		b[ib + 3] = twofivefive;  // alpha
 	}
 }
 
@@ -378,9 +377,7 @@ int maph(int argc, char* argv[])
 	std::vector<uint8_t> b(s.bpp * s.nxy);
 
 	// Initialize
-	int ip;
-	for (ip = 0; ip < s.nxy; ip++)
-		img[ip] = 0;
+	std::fill(img.begin(), img.end(), 0);
 
 	std::vector<double> rmat(4);
 	if (trans)
@@ -398,7 +395,6 @@ int maph(int argc, char* argv[])
 		#else
 			mkdir(transdir.c_str(), 0777);
 		#endif
-
 	}
 
 	std::vector<double> lats, lons;
@@ -451,7 +447,7 @@ int maph(int argc, char* argv[])
 				ofgpx << "\t<trk>\n";
 				ofgpx << "\t\t<trkseg>\n";
 
-				// Shuffle
+				// Shuffle.  Could initialize with iota() here.
 				std::vector<unsigned int> id(ntrkpt);
 				for (unsigned int i = 0; i < ntrkpt; i++)
 					id[i] = i;
@@ -529,8 +525,35 @@ int maph(int argc, char* argv[])
 	// Kernel radius (pixels)
 	int r = 10;
 
-	int ix, iy, ix0, iy0;
+	// Kernel width
+	int tr1 = 2 * r + 1;
+
+	//std::cout << "setting kernel..." << std::endl;
+
+	std::vector<unsigned int> kernel(tr1 * tr1);
+	int ix, iy, ik;
 	unsigned int inc;
+	for (int dx = -r; dx <= r; dx++)
+	{
+		ix = dx + r;
+		for (int dy = -r; dy <= r; dy++)
+		{
+			iy = dy + r;
+
+			//// Pyramid kernel
+			//inc = std::max(0, r - abs(dx) - abs(dy));
+
+			// Cone kernel, better looking
+			inc = std::max(0, r - (int) sqrt(dx*dx + dy*dy));
+
+			ik = tr1 * (tr1 - iy - 1) + ix;
+			kernel[ik] = inc;
+		}
+	}
+
+	//std::cout << "convoluting..." << std::endl;
+
+	int ix0, iy0, dxr, dyr, ip;
 	for (i = 0; i < ntrkptsum; i++)
 	{
 		lat = lats[i];
@@ -543,19 +566,16 @@ int maph(int argc, char* argv[])
 			ix = ix0 + dx;
 			if (0 <= ix && ix < s.nx)
 			{
+				dxr = dx + r;
 				for (int dy = -r; dy <= r; dy++)
 				{
 					iy = iy0 + dy;
 					if (0 <= iy && iy < s.ny)
 					{
-						//// Pyramid kernel
-						//inc = std::max(0, r - abs(dx) - abs(dy));
-
-						// Cone kernel.  A bit slower but better looking.
-						inc = std::max(0, r - (int) sqrt(dx*dx + dy*dy));
-
-						ip = s.nx * (s.ny - iy - 1) + ix;
-						img[ip] = img[ip] + inc;
+						dyr = dy + r;
+						ik = tr1  * (tr1  - dyr - 1) + dxr;
+						ip = s.nx * (s.ny - iy  - 1) + ix ;
+						img[ip] += kernel[ik];
 					}
 				}
 			}

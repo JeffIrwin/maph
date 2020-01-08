@@ -429,6 +429,7 @@ int maph(int argc, char* argv[])
 	}
 
 	std::vector<double> lats, lons;
+	std::vector<unsigned int> iEndSeg;
 	int ntrkptsum = 0;
 	double lat, lon;
 	for (int ig = 0; ig < gpxs.size(); ig++)
@@ -514,6 +515,7 @@ int maph(int argc, char* argv[])
 			}
 
 			ntrkptsum += ntrkpt;
+			iEndSeg.push_back(ntrkptsum - 1);
 
 		}
 		catch (const std::exception& e)
@@ -527,6 +529,7 @@ int maph(int argc, char* argv[])
 
 	//std::cout << "lats = " << lats << std::endl;
 	//std::cout << "lons = " << lons << std::endl;
+	//std::cout << "iEndSeg = " << iEndSeg << std::endl;
 
 	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
 
@@ -578,8 +581,42 @@ int maph(int argc, char* argv[])
 
 	//std::cout << "convoluting..." << std::endl;
 
+	//for (i = 0; i < ntrkptsum; i++)
+	//	addKernel(s, lats[i], lons[i], img, kernel);
+
+	double degPerPix
+			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
+			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
+
+	unsigned int iseg = 0;
 	for (i = 0; i < ntrkptsum; i++)
-		addKernel(s, lats[i], lons[i], img, kernel);
+	{
+		if (i != iEndSeg[iseg])
+		{
+			// Linear subsampling
+
+			double x0 = lons[i];
+			double y0 = lats[i];
+			double x1 = lons[i + 1];
+			double y1 = lats[i + 1];
+
+			double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / degPerPix;
+			int n = 4 * (dpix / s.r);
+
+			for (int j = 0; j < n; j++)
+			{
+				double lat = lats[i] + ((double) j / n) * (lats[i+1] - lats[i]);
+				double lon = lons[i] + ((double) j / n) * (lons[i+1] - lons[i]);
+				addKernel(s, lat, lon, img, kernel);
+			}
+		}
+		else
+		{
+			// Final point
+			addKernel(s, lats[i], lons[i], img, kernel);
+			iseg++;
+		}
+	}
 
 	//std::cout << img << std::endl;
 	//return 0;  // for benchmarking kernel convolution

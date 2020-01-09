@@ -5,7 +5,6 @@
 //     - Gaussian kernel?
 //     - More JSON inputs
 //         * subsampling step size
-//         * kernel radius
 //         * kernel type
 //         * background color:  0, NaN, or other
 //
@@ -156,10 +155,10 @@ class Settings
 	double minx, maxx, miny, maxy;
 
 	// Kernel radius (pixels)
-	const int r = 10;
+	int r;
 
 	// Kernel width
-	const int tr1 = 2 * r + 1;
+	int tr1;
 
 	// isample == 0:  no subsampling, pointwise only
 	// isample == 1:  automatically choose sampling based on avg length
@@ -344,6 +343,9 @@ int maph(int argc, char* argv[])
 	const std::string sampleId = "Sampling";
 	s.isample = loadJsonOrDefault(sampleId, 1, inj);
 
+	const std::string radiusId = "Kernel radius";
+	s.r = loadJsonOrDefault(radiusId, 10, inj);
+
 	const std::string minxId = "Min x";
 	s.minx = loadJsonOrDefault(minxId, 0.0, inj);
 
@@ -393,6 +395,7 @@ int maph(int argc, char* argv[])
 	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
 	std::cout << sampleId << " = " << s.isample << "\n";
+	std::cout << radiusId << " = " << s.r << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
@@ -569,6 +572,7 @@ int maph(int argc, char* argv[])
 
 	//std::cout << "setting kernel..." << std::endl;
 
+	s.tr1 = 2 * s.r + 1;
 	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
 	int ix, iy, ik;
 	unsigned int inc;

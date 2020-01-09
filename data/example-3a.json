@@ -8,6 +8,7 @@
 	"Colormap name"     : "Blue to Red Rainbow",
 
 	"GPX files"         : "data/export_0/activities/*.gpx",
+	"Sampling"          : 0,
 	"Min x"             : -80.95,
 	"Max x"             : -80.857,
 	"Min y"             : -14.414,

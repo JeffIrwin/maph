@@ -4,6 +4,7 @@
 //     - Refactor
 //     - Gaussian kernel?
 //     - More JSON inputs
+//         * subsampling step size
 //         * kernel radius
 //         * kernel type
 //         * background color:  0, NaN, or other
@@ -160,6 +161,11 @@ class Settings
 	// Kernel width
 	const int tr1 = 2 * r + 1;
 
+	// isample == 0:  no subsampling, pointwise only
+	// isample == 1:  automatically choose sampling based on avg length
+	// isample == 2:  linear subsampling within every segment
+	int isample;
+
 	std::string fname;
 	std::string fgpx;
 	int verb;
@@ -308,6 +314,7 @@ int maph(int argc, char* argv[])
 		}
 	}
 
+	std::cout << "\nLoading JSON input file \"" << fjson << "\" ..." << std::endl;
 	std::ifstream ifs(fjson);
 	json inj;
 
@@ -333,6 +340,9 @@ int maph(int argc, char* argv[])
 
 	const std::string verbId = "Verbosity";
 	s.verb = loadJsonOrDefault(verbId, 0, inj);
+
+	const std::string sampleId = "Sampling";
+	s.isample = loadJsonOrDefault(sampleId, 1, inj);
 
 	const std::string minxId = "Min x";
 	s.minx = loadJsonOrDefault(minxId, 0.0, inj);
@@ -382,6 +392,7 @@ int maph(int argc, char* argv[])
 	std::cout << imapId << " = " << s.c.imap << "\n";
 	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
+	std::cout << sampleId << " = " << s.isample << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
@@ -579,42 +590,83 @@ int maph(int argc, char* argv[])
 		}
 	}
 
-	//std::cout << "convoluting..." << std::endl;
-
-	//for (i = 0; i < ntrkptsum; i++)
-	//	addKernel(s, lats[i], lons[i], img, kernel);
-
 	double degPerPix
 			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
 			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
 
-	unsigned int iseg = 0;
-	for (i = 0; i < ntrkptsum; i++)
+	if (s.isample == 1)
 	{
-		if (i != iEndSeg[iseg])
+		double lensum = 0;
+		unsigned int iseg = 0;
+		for (i = 0; i < ntrkptsum - 1; i++)
 		{
-			// Linear subsampling
-
-			double x0 = lons[i];
-			double y0 = lats[i];
-			double x1 = lons[i + 1];
-			double y1 = lats[i + 1];
-
-			double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / degPerPix;
-			int n = 4 * (dpix / s.r);
-
-			for (int j = 0; j < n; j++)
+			if (i == iEndSeg[iseg])
 			{
-				double lat = lats[i] + ((double) j / n) * (lats[i+1] - lats[i]);
-				double lon = lons[i] + ((double) j / n) * (lons[i+1] - lons[i]);
-				addKernel(s, lat, lon, img, kernel);
+				iseg++;
+			}
+			else
+			{
+				double len = sqrt(pow(lats[i+1] - lats[i], 2)
+				                + pow(lons[i+1] - lons[i], 2));
+				lensum += len;
+				//std::cout << "len = " << len << "\n";
 			}
 		}
+
+		double lenavg = lensum / ntrkptsum;
+		double lenavgpix = lenavg / degPerPix;
+
+		//std::cout << "lensum    = " << lensum    << std::endl;
+		//std::cout << "lenavg    = " << lenavg    << std::endl;
+		//std::cout << "lenavgpix / s.r = " << lenavgpix / s.r << std::endl;
+
+		std::cout << "Average segment length = " << lenavgpix
+				<< " pixels" << std::endl;
+
+		if (lenavgpix / s.r < 0.5)
+			s.isample = 0;
 		else
-		{
-			// Final point
+			s.isample = 2;
+
+	}
+
+	if (s.isample == 0)
+	{
+		std::cout << "Convoluting pointwise..." << std::endl;
+		for (i = 0; i < ntrkptsum; i++)
 			addKernel(s, lats[i], lons[i], img, kernel);
-			iseg++;
+	}
+	else // if (s.isample == 2)
+	{
+		std::cout << "Convoluting linearly..." << std::endl;
+		unsigned int iseg = 0;
+		for (i = 0; i < ntrkptsum; i++)
+		{
+			if (i == iEndSeg[iseg])
+			{
+				// Final point
+				addKernel(s, lats[i], lons[i], img, kernel);
+				iseg++;
+			}
+			else
+			{
+				// Linear subsampling
+
+				double x0 = lons[i];
+				double y0 = lats[i];
+				double x1 = lons[i + 1];
+				double y1 = lats[i + 1];
+
+				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / degPerPix;
+				int n = std::max((int) (4 * (dpix / s.r)), 1);
+
+				for (int j = 0; j < n; j++)
+				{
+					double lat = y0 + ((double) j / n) * (y1 - y0);
+					double lon = x0 + ((double) j / n) * (x1 - x0);
+					addKernel(s, lat, lon, img, kernel);
+				}
+			}
 		}
 	}
 

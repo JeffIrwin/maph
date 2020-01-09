@@ -1,12 +1,12 @@
 {
 	"Image size x"      : 3840,
 	"Image size y"      : 2160,
+	"Fit y"             : true,
 
 	"Colormap file"     : "submodules/colormaps/ColorMaps5.0.0.xml",
-	"Colormap name"     : "Black-Body Radiation",
+	"Colormap name"     : "CIELab Blue to Red",
 
-	"GPX files"         : "data/export_0/activities/*.gpx",
-	"Sampling"          : 0,
+	"GPX files"         : "data/export_0/activities/28*.gpx",
 	"Min x"             : -80.95,
 	"Max x"             : -80.857,
 	"Min y"             : -14.414,

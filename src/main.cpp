@@ -149,32 +149,42 @@ class Settings
 {
 	public:
 
-	int nx, ny, nxy;
+		int nx, ny, nxy;
 
-	bool fit, fity;
-	double minx, maxx, miny, maxy;
+		bool fit, fity;
+		double minx, maxx, miny, maxy;
 
-	// Kernel radius (pixels)
-	int r;
+		// Kernel radius (pixels)
+		int r;
 
-	// Kernel width
-	int tr1;
+		// Kernel width
+		int tr1;
 
-	// isample == 0:  no subsampling, pointwise only
-	// isample == 1:  automatically choose sampling based on avg length
-	// isample == 2:  linear subsampling within every segment
-	int isample;
+		// isample == 0:  no subsampling, pointwise only
+		// isample == 1:  automatically choose sampling based on avg length
+		// isample == 2:  linear subsampling within every segment
+		int isample;
 
-	std::string fname;
-	std::string fgpx;
-	int verb;
+		std::string fname;
+		std::string fgpx;
+		int verb;
 
-	ColorMap c;
+		ColorMap c;
 
-	// Bytes per pixel:  RGBA
-	const int bpp = 4;
+		// Bytes per pixel:  RGBA
+		const int bpp = 4;
 
-	const std::string imgext = ".png";
+		const std::string imgext = ".png";
+};
+
+class Transformation
+{
+	public:
+
+		bool enable;
+		double x, y, rot;
+		std::vector<double> mat;
+		std::string outdir;
 };
 
 void printBounds(const Settings& s)
@@ -186,8 +196,11 @@ void printBounds(const Settings& s)
 			<< std::endl;
 }
 
-void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const std::vector<unsigned int>& idx, std::vector<uint8_t>& b)
+std::vector<uint8_t> colorPixels(const Settings& s,
+		const std::vector<unsigned int>& img,
+		const std::vector<unsigned int>& idx)
 {
+	std::vector<uint8_t> pix(s.bpp * s.nxy);
 	double x, x0;
 	x0 = 0.0;
 
@@ -229,22 +242,19 @@ void colorPixels(const Settings& s, const std::vector<unsigned int>& img, const 
 
 		// Save RGB triple to pixel.
 		int ib = idx[i] * s.bpp;
-		b[ib + 0] = rgb[0];
-		b[ib + 1] = rgb[1];
-		b[ib + 2] = rgb[2];
-		b[ib + 3] = twofivefive;  // alpha
+		pix[ib + 0] = rgb[0];
+		pix[ib + 1] = rgb[1];
+		pix[ib + 2] = rgb[2];
+		pix[ib + 3] = twofivefive;  // alpha
 	}
+	return pix;
 }
 
-int usage()
+void addKernel(const Settings& s, double lat, double lon,
+		std::vector<unsigned int>& img, std::vector<unsigned int>& kernel)
 {
-	std::cout << "Usage:" << std::endl;
-	std::cout << "\t" << me << " input.json [-t dir xshift yshift rot]" << std::endl;
-	return ERR_CMD_ARG;
-}
+	// Add a single heat kernel to the image at coordinate (lat, lon).
 
-void addKernel(const Settings& s, double lat, double lon, std::vector<unsigned int>& img, std::vector<unsigned int>& kernel)
-{
 	int ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
 	int iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
 
@@ -269,14 +279,16 @@ void addKernel(const Settings& s, double lat, double lon, std::vector<unsigned i
 	}
 }
 
-int maph(int argc, char* argv[])
+int usage()
 {
-	std::cout << std::setprecision(16);
-	std::string fjson;
+	std::cout << "Usage:" << std::endl;
+	std::cout << "\t" << me << " input.json [-t dir xshift yshift rot]" << std::endl;
+	return ERR_CMD_ARG;
+}
 
-	std::string transdir;
-	bool trans = false;
-	double transx, transy, transd;
+int loadArgs(int argc, char* argv[], /* Settings& s, */ Transformation& t, std::string& fjson)
+{
+	t.enable = false;
 
 	if (argc < 2)
 	{
@@ -292,15 +304,15 @@ int maph(int argc, char* argv[])
 			if (str == "-t")
 			{
 				// Transformation args
-				trans = true;
-				transdir = argv[++i];
-				std::cout << "Transformation directory = \"" << transdir << "\".\n";
-				transx = std::stod(argv[++i]);
-				transy = std::stod(argv[++i]);
-				transd = std::stod(argv[++i]);
-				std::cout << "X translation = " << transx << "\n";
-				std::cout << "Y translation = " << transy << "\n";
-				std::cout << "Rotation      = " << transd << "\n";
+				t.enable = true;
+				t.outdir = argv[++i];
+				std::cout << "Transformation directory = \"" << t.outdir << "\".\n";
+				t.x   = std::stod(argv[++i]);
+				t.y   = std::stod(argv[++i]);
+				t.rot = std::stod(argv[++i]);
+				std::cout << "X translation = " << t.x   << "\n";
+				std::cout << "Y translation = " << t.y   << "\n";
+				std::cout << "Rotation      = " << t.rot << "\n";
 				std::cout << std::endl;
 			}
 			else
@@ -312,10 +324,13 @@ int maph(int argc, char* argv[])
 			return usage();
 		}
 	}
+	return 0;
+}
 
+int loadJson(std::string& fjson, json& inj)
+{
 	std::cout << "\nLoading JSON input file \"" << fjson << "\" ..." << std::endl;
 	std::ifstream ifs(fjson);
-	json inj;
 
 	try
 	{
@@ -329,8 +344,11 @@ int maph(int argc, char* argv[])
 		return ERR_JSON;
 	}
 
-	Settings s;
+	return 0;
+}
 
+int loadSettings(Settings& s, json& inj, std::string& fjson)
+{
 	const std::string sizexId = "Image size x";
 	s.nx = loadJsonOrDefault(sizexId, 1280, inj);
 
@@ -410,41 +428,15 @@ int maph(int argc, char* argv[])
 		int io = s.c.load(cmapFile, cmapName);
 		if (io != 0) return io;
 	}
+	return 0;
+}
 
-	std::vector<std::string> gpxs;
-	getFiles(s.fgpx, gpxs);
-
-	//std::cout << "GPX files = " << gpxs << std::endl;
-	std::cout << "Number of GPX files = " << gpxs.size() << std::endl;
-
-	s.nxy = s.nx * s.ny;
-	std::vector<unsigned int> img(s.nxy);
-	std::vector<uint8_t> b(s.bpp * s.nxy);
-
-	// Initialize
-	std::fill(img.begin(), img.end(), 0);
-
-	std::vector<double> rmat(4);
-	if (trans)
-	{
-		// Get rotation matrix
-		transd *= pi / 180.0;  // degrees to radians
-		rmat[0] =  std::cos(transd);
-		rmat[1] = -std::sin(transd);
-		rmat[2] =  std::sin(transd);
-		rmat[3] =  std::cos(transd);
-
-		// Make output directory
-		#if defined(_WIN32) || defined(_WIN64)
-			_mkdir(transdir.c_str());
-		#else
-			mkdir(transdir.c_str(), 0777);
-		#endif
-	}
-
-	std::vector<double> lats, lons;
-	std::vector<unsigned int> iEndSeg;
-	int ntrkptsum = 0;
+int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
+		std::vector<double>& lats, std::vector<double>& lons,
+		std::vector<unsigned int>& iEndSeg, int& ntrkptsum)
+// TODO:  encapsulate some of these args.  c.f. similar functions.
+{
+	ntrkptsum = 0;
 	double lat, lon;
 	for (int ig = 0; ig < gpxs.size(); ig++)
 	{
@@ -452,11 +444,13 @@ int maph(int argc, char* argv[])
 
 		if (s.verb > 0) std::cout << "GPX file = " << gpxs[ig] << std::endl;
 
+		// TODO:  make these next few lines a function in xml_helper.
 		pugi::xml_document doc;
 		pugi::xml_parse_result result = doc.load_file(gpxs[ig].c_str());
 		if (!result)
 		{
-			std::cout << "\nError:  cannot open or parse GPX file \"" << gpxs[ig] << "\"." << std::endl;
+			std::cout << "\nError:  cannot open or parse GPX file \""
+					<< gpxs[ig] << "\"." << std::endl;
 			return ERR_XML_OPEN;
 		}
 
@@ -468,7 +462,8 @@ int maph(int argc, char* argv[])
 			trkpt0 = doc.select_node(xquery.c_str());
 			if (!trkpt0) throw xPathException;
 
-			for (pugi::xml_node trkpt = trkpt0.node(); trkpt; trkpt = trkpt.next_sibling("trkpt"))
+			for (pugi::xml_node trkpt = trkpt0.node(); trkpt;
+					trkpt = trkpt.next_sibling("trkpt"))
 			{
 				ntrkpt++;
 				lat = std::stod(trkpt.attribute("lat").value());
@@ -481,9 +476,10 @@ int maph(int argc, char* argv[])
 
 			if (s.verb > 0) std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
 
-			if (trans)
+			if (t.enable)
 			{
-				std::string fogpx = transdir + slash + gpxs[ig].substr(gpxs[ig].find_last_of(slash) + 1);
+				std::string fogpx = t.outdir + slash
+						+ gpxs[ig].substr(gpxs[ig].find_last_of(slash) + 1);
 
 				if (s.verb > 0) std::cout << "fogpx = " << fogpx << std::endl;
 
@@ -505,12 +501,12 @@ int maph(int argc, char* argv[])
 					unsigned int j = id[it];
 
 					// Translate
-					lons[j] += transx;
-					lats[j] += transy;
+					lons[j] += t.x;
+					lats[j] += t.y;
 
 					// Rotate
-					lon = rmat[0] * lons[j] + rmat[1] * lats[j];
-					lat = rmat[2] * lons[j] + rmat[3] * lats[j];
+					lon = t.mat[0] * lons[j] + t.mat[1] * lats[j];
+					lat = t.mat[2] * lons[j] + t.mat[3] * lats[j];
 
 					ofgpx << "\t\t\t<trkpt lat=\"" << lat
 					                << "\" lon=\"" << lon << "\"/>\n";
@@ -535,7 +531,8 @@ int maph(int argc, char* argv[])
 		catch (const std::exception& e)
 		{
 			// Ignore empty GPX files with a warning.
-			std::cout << "\nWarning:  cannot parse GPX file \"" << gpxs[ig] << "\"." << std::endl;
+			std::cout << "\nWarning:  cannot parse GPX file \"" << gpxs[ig]
+					<< "\"." << std::endl;
 			std::cout << e.what() << std::endl;
 			//return ERR_XML_PARSE;
 		}
@@ -547,29 +544,11 @@ int maph(int argc, char* argv[])
 
 	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
 
-	if (trans)
-		return 0;
+	return 0;
+}
 
-	if (s.fit)
-	{
-		s.minx = *min_element(begin(lons), end(lons));
-		s.maxx = *max_element(begin(lons), end(lons));
-		s.miny = *min_element(begin(lats), end(lats));
-		s.maxy = *max_element(begin(lats), end(lats));
-	}
-
-	if (s.fity)
-	{
-		double avgy = 0.5 * (s.miny + s.maxy);
-		double difx = s.maxx - s.minx;
-		double dify = cos(avgy * pi / 180.0) * s.ny / s.nx * difx;
-		s.miny = avgy - 0.5 * dify;
-		s.maxy = avgy + 0.5 * dify;
-	}
-
-	if (s.fit || s.fity)
-		printBounds(s);
-
+std::vector<unsigned int> getKernel(Settings& s)
+{
 	//std::cout << "setting kernel..." << std::endl;
 
 	s.tr1 = 2 * s.r + 1;
@@ -593,58 +572,63 @@ int maph(int argc, char* argv[])
 			kernel[ik] = inc;
 		}
 	}
+	return kernel;
+}
 
-	double degPerPix
-			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
-			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
-
-	if (s.isample == 1)
+double getAvgLength(std::vector<double>& lats, std::vector<double>& lons,
+		std::vector<unsigned int> iEndSeg, int& ntrkptsum, double& degPerPix)
+{
+	double lensum = 0;
+	unsigned int iseg = 0;
+	for (int i = 0; i < ntrkptsum - 1; i++)
 	{
-		double lensum = 0;
-		unsigned int iseg = 0;
-		for (i = 0; i < ntrkptsum - 1; i++)
+		if (i == iEndSeg[iseg])
 		{
-			if (i == iEndSeg[iseg])
-			{
-				iseg++;
-			}
-			else
-			{
-				double len = sqrt(pow(lats[i+1] - lats[i], 2)
-				                + pow(lons[i+1] - lons[i], 2));
-				lensum += len;
-				//std::cout << "len = " << len << "\n";
-			}
+			iseg++;
 		}
-
-		double lenavg = lensum / ntrkptsum;
-		double lenavgpix = lenavg / degPerPix;
-
-		//std::cout << "lensum    = " << lensum    << std::endl;
-		//std::cout << "lenavg    = " << lenavg    << std::endl;
-		//std::cout << "lenavgpix / s.r = " << lenavgpix / s.r << std::endl;
-
-		std::cout << "Average segment length = " << lenavgpix
-				<< " pixels" << std::endl;
-
-		if (lenavgpix / s.r < 0.5)
-			s.isample = 0;
 		else
-			s.isample = 2;
-
+		{
+			double len = sqrt(pow(lats[i+1] - lats[i], 2)
+			                + pow(lons[i+1] - lons[i], 2));
+			lensum += len;
+			//std::cout << "len = " << len << "\n";
+		}
 	}
+
+	double lenavg = lensum / ntrkptsum;
+	double lenavgpix = lenavg / degPerPix;
+
+	//std::cout << "lensum    = " << lensum    << std::endl;
+	//std::cout << "lenavg    = " << lenavg    << std::endl;
+	//std::cout << "lenavgpix / s.r = " << lenavgpix / s.r << std::endl;
+
+	std::cout << "Average track length = " << lenavgpix
+			<< " pixels" << std::endl;
+
+	return lenavgpix;
+}
+
+std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
+		std::vector<double>& lons, std::vector<unsigned int>& iEndSeg,
+		int& ntrkptsum, double& degPerPix, std::vector<unsigned int>& kernel)
+{
+	s.nxy = s.nx * s.ny;
+	std::vector<unsigned int> img(s.nxy);
+
+	// Initialize
+	std::fill(img.begin(), img.end(), 0);
 
 	if (s.isample == 0)
 	{
 		std::cout << "Convoluting pointwise..." << std::endl;
-		for (i = 0; i < ntrkptsum; i++)
+		for (int i = 0; i < ntrkptsum; i++)
 			addKernel(s, lats[i], lons[i], img, kernel);
 	}
 	else // if (s.isample == 2)
 	{
 		std::cout << "Convoluting linearly..." << std::endl;
 		unsigned int iseg = 0;
-		for (i = 0; i < ntrkptsum; i++)
+		for (int i = 0; i < ntrkptsum; i++)
 		{
 			if (i == iEndSeg[iseg])
 			{
@@ -673,15 +657,110 @@ int maph(int argc, char* argv[])
 			}
 		}
 	}
-
 	//std::cout << img << std::endl;
+	return img;
+}
+
+int maph(int argc, char* argv[])
+{
+	int io = 0;
+
+	std::cout << std::setprecision(16);
+
+	Settings s;
+	Transformation t;
+	std::string fjson;
+
+	io = loadArgs(argc, argv, /* s, */ t, fjson);
+	if (io != 0)
+		return io;
+
+	json inj;
+	io = loadJson(fjson, inj);
+	if (io != 0)
+		return io;
+
+	io = loadSettings(s, inj, fjson);
+	if (io != 0)
+		return io;
+
+	std::vector<std::string> gpxs;
+	getFiles(s.fgpx, gpxs);
+
+	//std::cout << "GPX files = " << gpxs << std::endl;
+	std::cout << "Number of GPX files = " << gpxs.size() << std::endl;
+
+	if (t.enable)
+	{
+		t.mat.resize(4);
+
+		// Get rotation matrix
+		t.rot *= pi / 180.0;  // degrees to radians
+		t.mat[0] =  std::cos(t.rot);
+		t.mat[1] = -std::sin(t.rot);
+		t.mat[2] =  std::sin(t.rot);
+		t.mat[3] =  std::cos(t.rot);
+
+		// Make output directory
+		#if defined(_WIN32) || defined(_WIN64)
+			_mkdir(t.outdir.c_str());
+		#else
+			mkdir(t.outdir.c_str(), 0777);
+		#endif
+	}
+
+	std::vector<double> lats, lons;
+	std::vector<unsigned int> iEndSeg;
+	int ntrkptsum;
+	io = loadGpxs(s, t, gpxs, lats, lons, iEndSeg, ntrkptsum);
+	if (io != 0)
+		return io;
+
+	if (t.enable)
+		return 0;
+
+	if (s.fit)
+	{
+		s.minx = *min_element(begin(lons), end(lons));
+		s.maxx = *max_element(begin(lons), end(lons));
+		s.miny = *min_element(begin(lats), end(lats));
+		s.maxy = *max_element(begin(lats), end(lats));
+	}
+
+	if (s.fity)
+	{
+		double avgy = 0.5 * (s.miny + s.maxy);
+		double difx = s.maxx - s.minx;
+		double dify = cos(avgy * pi / 180.0) * s.ny / s.nx * difx;
+		s.miny = avgy - 0.5 * dify;
+		s.maxy = avgy + 0.5 * dify;
+	}
+
+	if (s.fit || s.fity)
+		printBounds(s);
+
+	double degPerPix
+			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
+			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
+
+	if (s.isample == 1)
+	{
+		double lenavgpix = getAvgLength(lats, lons, iEndSeg, ntrkptsum, degPerPix);
+		if (lenavgpix / s.r < 0.5)
+			s.isample = 0;
+		else
+			s.isample = 2;
+	}
+
+	auto kernel = getKernel(s);
+	auto img = convolute(s, lats, lons, iEndSeg, ntrkptsum, degPerPix, kernel);
 	//return 0;  // for benchmarking kernel convolution
 
 	// Sort for histogram coloring.
 	auto idx = sortidx(img);
 
-	colorPixels(s, img, idx, b);
-	int io = save_png(b, s.nx, s.ny, s.fname + s.imgext);
+	auto pixels = colorPixels(s, img, idx);
+	io = save_png(pixels, s.nx, s.ny, s.fname + s.imgext);
 	return io;
 }
 

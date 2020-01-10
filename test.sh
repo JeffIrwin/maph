@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -v
 
 # This works on Windows too, but it needs the right environment.  Launch a
 # developer command prompt for VS, then from within that, launch git bash

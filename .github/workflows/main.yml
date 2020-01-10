@@ -14,5 +14,5 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Clean, build, and test
-      run: ./test.sh
+      run: bash ./test.sh
 

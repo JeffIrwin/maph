@@ -20,6 +20,10 @@ else
 	target=./target/Release
 fi
 
+ls submodules/lodepng/
+ls submodules/
+ls
+
 ./clean.sh
 ./build.sh
 

@@ -3,6 +3,7 @@
 //
 //     - Refactor
 //     - Gaussian kernel?
+//     - Fit x option
 //     - More JSON inputs
 //         * subsampling step size
 //         * kernel type

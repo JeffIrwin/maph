@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 
 # This works on Windows too, but it needs the right environment.  Launch a
 # developer command prompt for VS, then from within that, launch git bash
@@ -22,9 +22,9 @@ fi
 
 git submodule update --init --recursive
 
-ls submodules/lodepng/
-ls submodules/
-ls
+#ls submodules/lodepng/
+#ls submodules/
+#ls
 
 ./clean.sh
 ./build.sh

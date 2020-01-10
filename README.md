@@ -1,4 +1,4 @@
-https://github.com/JeffIrwin/maph/workflows/CI/badge.svg
+![](https://github.com/JeffIrwin/maph/workflows/CI/badge.svg)
 
 # maph
 *This isn't normal, but on maph it is*

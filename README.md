@@ -1,13 +1,12 @@
 ![](https://github.com/JeffIrwin/maph/workflows/CI/badge.svg)
-
 # maph
 *This isn't normal, but on maph it is*
 
-Make a heatmap of everywhere you've worked out from Strava.
+Make a heatmap of everywhere you've worked out from Strava or any other app that can export GPX files.
 
 ## Compile
 
-Use CMake, or just run `build.sh` on Linux or `build.cmd` on Windows.
+Use CMake, or just run `build.sh` on Linux or macOS or `build.cmd` on Windows.
 
 ## Download your bulk GPX data from Strava
 
@@ -43,7 +42,7 @@ Here is an example:
     }
 
 ## Run
-Linux:
+Linux or macOS:
 
     ./target/maph data/example-1a.json
     
@@ -61,7 +60,10 @@ Maph will write the results to a PNG file.  A couple examples are below (we did 
 
 ## Platforms
 
+For CI testing, see https://github.com/JeffIrwin/maph/actions
+
 This tool has been tested on:
+- AppleClang 11.0.0.11000033
 - MSVC 19.0.24215.1 (Visual Studio 14 2015)
 - MSVC 19.15.26726.0 (Visual Studio 15 2017)
 - MSVC 19.24.28314.0 (Visual Studio 16 2019)

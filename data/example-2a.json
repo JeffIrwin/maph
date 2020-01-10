@@ -1,6 +1,6 @@
 {
 	"Image size x"      : 3840,
-	"Image size y"      : 2150,
+	"Image size y"      : 2160,
 
 	"Colormap file"     : "submodules/colormaps/ColorMaps5.0.0.xml",
 	"Colormap name"     : "Black-Body Radiation",

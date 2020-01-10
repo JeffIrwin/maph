@@ -20,6 +20,8 @@ else
 	target=./target/Release
 fi
 
+git submodule update --init --recursive
+
 ls submodules/lodepng/
 ls submodules/
 ls

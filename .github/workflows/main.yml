@@ -14,5 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Clean, build, and test
-      run: bash ./test.sh
-
+      run:
+        sudo apt-get install gfortran
+        bash ./test.sh

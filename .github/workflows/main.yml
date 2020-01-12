@@ -14,5 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Clean, build, and test
-      run: bash ./test.sh
+      run: |
+        git submodule update --init --recursive
+        bash ./test.sh
 

@@ -1,6 +1,7 @@
 
 // TODO:
 //
+//     - Error checking
 //     - Refactor
 //     - Gaussian kernel?
 //     - Fit x option
@@ -350,6 +351,10 @@ int loadJson(std::string& fjson, json& inj)
 
 int loadSettings(Settings& s, json& inj, std::string& fjson)
 {
+	// TODO:  add better error checking.  It's probably better to
+	// iterate through the inj elements one-by-one so they can be
+	// checked for typos.
+
 	const std::string sizexId = "Image size x";
 	s.nx = loadJsonOrDefault(sizexId, 1280, inj);
 

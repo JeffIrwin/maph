@@ -258,7 +258,9 @@ void addKernel(const Settings& s, double lat, double lon,
 	// Add a single heat kernel to the image at coordinate (lat, lon).
 
 	int ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
+	if (ix0 < -s.r || ix0 > s.nx + s.r) return;
 	int iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
+	if (iy0 < -s.r || iy0 > s.ny + s.r) return;
 
 	for (int dy = -s.r; dy <= s.r; dy++)
 	{

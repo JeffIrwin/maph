@@ -5,6 +5,7 @@
 //     - Refactor
 //     - Gaussian kernel?
 //     - More JSON inputs
+//         * margin option to expand bounds (regardless of fitting options)
 //         * subsampling step size
 //         * kernel type
 //         * background color:  0, NaN, or other
@@ -259,20 +260,22 @@ void addKernel(const Settings& s, double lat, double lon,
 	int ix0 = floor(s.nx * (lon - s.minx) / (s.maxx - s.minx));
 	int iy0 = floor(s.ny * (lat - s.miny) / (s.maxy - s.miny));
 
-	for (int dx = -s.r; dx <= s.r; dx++)
+	for (int dy = -s.r; dy <= s.r; dy++)
 	{
-		int ix = ix0 + dx;
-		if (0 <= ix && ix < s.nx)
+		int iy = iy0 + dy;
+		if (0 <= iy && iy < s.ny)
 		{
-			int dxr = dx + s.r;
-			for (int dy = -s.r; dy <= s.r; dy++)
+			int dyr = dy + s.r;
+			int iyk = s.tr1 * (s.tr1 - dyr - 1);
+			int iyp = s.nx  * (s.ny  - iy  - 1);
+			for (int dx = -s.r; dx <= s.r; dx++)
 			{
-				int iy = iy0 + dy;
-				if (0 <= iy && iy < s.ny)
+				int ix = ix0 + dx;
+				if (0 <= ix && ix < s.nx)
 				{
-					int dyr = dy + s.r;
-					int ik = s.tr1 * (s.tr1 - dyr - 1) + dxr;
-					int ip = s.nx  * (s.ny  - iy  - 1) + ix ;
+					int dxr = dx + s.r;
+					int ik = iyk + dxr;
+					int ip = iyp + ix ;
 					img[ip] += kernel[ik];
 				}
 			}
@@ -564,12 +567,13 @@ std::vector<unsigned int> getKernel(Settings& s)
 	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
 	int ix, iy, ik;
 	unsigned int inc;
-	for (int dx = -s.r; dx <= s.r; dx++)
+	for (int dy = -s.r; dy <= s.r; dy++)
 	{
-		ix = dx + s.r;
-		for (int dy = -s.r; dy <= s.r; dy++)
+		iy = dy + s.r;
+		int iyk = s.tr1 * (s.tr1 - iy - 1);
+		for (int dx = -s.r; dx <= s.r; dx++)
 		{
-			iy = dy + s.r;
+			ix = dx + s.r;
 
 			//// Pyramid kernel
 			//inc = std::max(0, s.r - abs(dx) - abs(dy));
@@ -577,7 +581,7 @@ std::vector<unsigned int> getKernel(Settings& s)
 			// Cone kernel, better looking
 			inc = std::max(0, s.r - (int) sqrt(dx*dx + dy*dy));
 
-			ik = s.tr1 * (s.tr1 - iy - 1) + ix;
+			ik = iyk + ix;
 			kernel[ik] = inc;
 		}
 	}

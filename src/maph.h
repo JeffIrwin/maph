@@ -4,7 +4,6 @@
 //     - Error checking
 //     - Refactor
 //     - Gaussian kernel?
-//     - Fit x option
 //     - More JSON inputs
 //         * subsampling step size
 //         * kernel type
@@ -153,7 +152,7 @@ class Settings
 
 		int nx, ny, nxy;
 
-		bool fit, fity;
+		bool fit, fitx, fity;
 		double minx, maxx, miny, maxy;
 
 		// Kernel radius (pixels)
@@ -382,6 +381,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string maxyId = "Max y";
 	s.maxy = loadJsonOrDefault(maxyId, 0.0, inj);
 
+	const std::string fitxId = "Fit x";
+	s.fitx = loadJsonOrDefault(fitxId, false, inj);
+
 	const std::string fityId = "Fit y";
 	s.fity = loadJsonOrDefault(fityId, false, inj);
 
@@ -420,6 +422,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << verbId << " = " << s.verb << "\n";
 	std::cout << sampleId << " = " << s.isample << "\n";
 	std::cout << radiusId << " = " << s.r << "\n";
+	std::cout << fitxId << " = " << s.fitx << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
@@ -731,6 +734,16 @@ int maph(int argc, char* argv[])
 		s.maxx = *max_element(begin(lons), end(lons));
 		s.miny = *min_element(begin(lats), end(lats));
 		s.maxy = *max_element(begin(lats), end(lats));
+	}
+
+	if (s.fitx)
+	{
+		double avgx = 0.5 * (s.minx + s.maxx);
+		double avgy = 0.5 * (s.miny + s.maxy);
+		double dify = s.maxy - s.miny;
+		double difx = dify / cos(avgy * pi / 180.0) * s.nx / s.ny;
+		s.minx = avgx - 0.5 * difx;
+		s.maxx = avgx + 0.5 * difx;
 	}
 
 	if (s.fity)

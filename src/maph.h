@@ -1,14 +1,18 @@
 
 // TODO:
 //
-//     - Error checking
+//     - Progress bar
 //     - Refactor
-//     - Gaussian kernel?
+//     - Gaussian kernel
 //     - More JSON inputs
+//         * 'Fit nx' and 'Fit ny' options to change the number of
+//           pixels for a consistent aspect instead of changing
+//           lats/lons
 //         * margin option to expand bounds (regardless of fitting options)
 //         * subsampling step size
 //         * kernel type
 //         * background color:  0, NaN, or other
+//     - Error checking
 //
 
 //======================================================================
@@ -57,6 +61,48 @@ using json = nlohmann::json;
 
 const std::string me = "maph";
 
+class Settings
+{
+	public:
+
+		int nx, ny, nxy;
+
+		bool fit, fitx, fity;
+		double minx, maxx, miny, maxy;
+
+		// Kernel radius (pixels)
+		int r;
+
+		// Kernel width
+		int tr1;
+
+		// isample == 0:  no subsampling, pointwise only
+		// isample == 1:  automatically choose sampling based on avg length
+		// isample == 2:  linear subsampling within every segment
+		int isample;
+
+		std::string fname;
+		std::string fgpx;
+		int verb;
+
+		ColorMap c;
+
+		// Bytes per pixel:  RGBA
+		const int bpp = 4;
+
+		const std::string imgext = ".png";
+};
+
+class Transformation
+{
+	public:
+
+		bool enable;
+		double x, y, rot;
+		std::vector<double> mat;
+		std::string outdir;
+};
+
 template<class T> std::ostream& operator<<(std::ostream& stream, const std::vector<T>& values)
 {
 	// cout (or other stream) << a vector
@@ -66,27 +112,7 @@ template<class T> std::ostream& operator<<(std::ostream& stream, const std::vect
 	return stream;
 }
 
-template <typename T> T loadJsonOrDefault(std::string id, T dflt, json j)
-{
-	// Return a value from a JSON object j by its key id, or return
-	// a default dflt if it cannot be parsed.
-	T val;
-	try
-	{
-		// TODO:  see https://stackoverflow.com/questions/16337610/how-to-know-if-a-type-is-a-specialization-of-stdvector
-
-		val = j[id];
-		//val = j[id].get<std::vector>;
-	}
-	catch (const std::exception& e)
-	{
-		std::cout << "Input did not contain properly formatted \"" << id << "\".  Using default." << std::endl;
-		val = dflt;
-	}
-	return val;
-}
-
-int save_png(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
+int savePng(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 {
 	std::cout << "Writing file \"" << f << "\" ..." << std::endl;
 	std::vector<uint8_t> imageBuffer;
@@ -146,48 +172,6 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 
 #endif
 }
-
-class Settings
-{
-	public:
-
-		int nx, ny, nxy;
-
-		bool fit, fitx, fity;
-		double minx, maxx, miny, maxy;
-
-		// Kernel radius (pixels)
-		int r;
-
-		// Kernel width
-		int tr1;
-
-		// isample == 0:  no subsampling, pointwise only
-		// isample == 1:  automatically choose sampling based on avg length
-		// isample == 2:  linear subsampling within every segment
-		int isample;
-
-		std::string fname;
-		std::string fgpx;
-		int verb;
-
-		ColorMap c;
-
-		// Bytes per pixel:  RGBA
-		const int bpp = 4;
-
-		const std::string imgext = ".png";
-};
-
-class Transformation
-{
-	public:
-
-		bool enable;
-		double x, y, rot;
-		std::vector<double> mat;
-		std::string outdir;
-};
 
 void printBounds(const Settings& s)
 {
@@ -335,7 +319,7 @@ int loadArgs(int argc, char* argv[], /* Settings& s, */ Transformation& t, std::
 
 int loadJson(std::string& fjson, json& inj)
 {
-	std::cout << "\nLoading JSON input file \"" << fjson << "\" ..." << std::endl;
+	std::cout << "Loading JSON input file \"" << fjson << "\" ..." << std::endl;
 	std::ifstream ifs(fjson);
 
 	try
@@ -355,68 +339,131 @@ int loadJson(std::string& fjson, json& inj)
 
 int loadSettings(Settings& s, json& inj, std::string& fjson)
 {
-	// TODO:  add better error checking.  It's probably better to
-	// iterate through the inj elements one-by-one so they can be
-	// checked for typos.
+	// Initial defaults
+	s.nx = 1280;
+	s.ny = 720;
+	s.verb = 0;
+	s.isample = 1;
+	s.r = 10;
+	s.minx = 0.0;
+	s.miny = 0.0;
+	s.maxx = 0.0;
+	s.maxy = 0.0;
+	s.fitx = false;
+	s.fity = false;
+	s.fname = fjson.substr(0, fjson.find_last_of("."));
+	s.fgpx = "*.gpx";
+	std::string cmapFile = "";
+	std::string cmapName = "";
+	s.c.imap = -1;
+	s.c.inv = false;
 
+	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
+
+	// JSON keys
 	const std::string sizexId = "Image size x";
-	s.nx = loadJsonOrDefault(sizexId, 1280, inj);
-
 	const std::string sizeyId = "Image size y";
-	s.ny = loadJsonOrDefault(sizeyId, 720, inj);
-
 	const std::string verbId = "Verbosity";
-	s.verb = loadJsonOrDefault(verbId, 0, inj);
-
 	const std::string sampleId = "Sampling";
-	s.isample = loadJsonOrDefault(sampleId, 1, inj);
-
 	const std::string radiusId = "Kernel radius";
-	s.r = loadJsonOrDefault(radiusId, 10, inj);
-
 	const std::string minxId = "Min x";
-	s.minx = loadJsonOrDefault(minxId, 0.0, inj);
-
 	const std::string minyId = "Min y";
-	s.miny = loadJsonOrDefault(minyId, 0.0, inj);
-
 	const std::string maxxId = "Max x";
-	s.maxx = loadJsonOrDefault(maxxId, 0.0, inj);
-
 	const std::string maxyId = "Max y";
-	s.maxy = loadJsonOrDefault(maxyId, 0.0, inj);
-
 	const std::string fitxId = "Fit x";
-	s.fitx = loadJsonOrDefault(fitxId, false, inj);
-
 	const std::string fityId = "Fit y";
-	s.fity = loadJsonOrDefault(fityId, false, inj);
-
-	s.fit = s.minx == s.maxx && s.miny == s.maxy;
-
 	const std::string fnameId = "File name prefix";
-	const std::string fnameDflt = fjson.substr(0, fjson.find_last_of("."));
-	s.fname = loadJsonOrDefault(fnameId, fnameDflt, inj);
-
 	const std::string fgpxId = "GPX files";
-	const std::string fgpxDflt = "*.gpx";
-	s.fgpx = loadJsonOrDefault(fgpxId, fgpxDflt, inj);
-
 	const std::string cmapFileId = "Colormap file";
-	const std::string cmapFileDflt = "";
-	std::string cmapFile = loadJsonOrDefault(cmapFileId, cmapFileDflt, inj);
-
 	const std::string cmapNameId = "Colormap name";
-	const std::string cmapNameDflt = "";
-	std::string cmapName = loadJsonOrDefault(cmapNameId, cmapNameDflt, inj);
-
 	const std::string imapId = "Color map";
-	s.c.imap = loadJsonOrDefault(imapId, -1, inj);
-
 	const std::string invertMapId = "Invert color map";
-	s.c.inv = loadJsonOrDefault(invertMapId, false, inj);
+
+	for (json::iterator it = inj.begin(); it != inj.end(); it++)
+	{
+		if (it.key() == sizexId && it.value().is_number())
+		{
+			s.nx = it.value();
+		}
+		else if (it.key() == sizeyId && it.value().is_number())
+		{
+			s.ny = it.value();
+		}
+		else if (it.key() == verbId && it.value().is_number())
+		{
+			s.verb = it.value();
+		}
+		else if (it.key() == sampleId && it.value().is_number())
+		{
+			s.isample = it.value();
+		}
+		else if (it.key() == radiusId && it.value().is_number())
+		{
+			s.r = it.value();
+		}
+		else if (it.key() == minxId && it.value().is_number())
+		{
+			s.minx = it.value();
+			bminx = true;
+		}
+		else if (it.key() == minyId && it.value().is_number())
+		{
+			s.miny = it.value();
+			bminy = true;
+		}
+		else if (it.key() == maxxId && it.value().is_number())
+		{
+			s.maxx = it.value();
+			bmaxx = true;
+		}
+		else if (it.key() == maxyId && it.value().is_number())
+		{
+			s.maxy = it.value();
+			bmaxy = true;
+		}
+		else if (it.key() == fitxId && it.value().is_boolean())
+		{
+			s.fitx = it.value();
+		}
+		else if (it.key() == fityId && it.value().is_boolean())
+		{
+			s.fity = it.value();
+		}
+		else if (it.key() == fnameId && it.value().is_string())
+		{
+			s.fname = it.value();
+		}
+		else if (it.key() == fgpxId && it.value().is_string())
+		{
+			s.fgpx = it.value();
+		}
+		else if (it.key() == cmapFileId && it.value().is_string())
+		{
+			cmapFile = it.value();
+		}
+		else if (it.key() == cmapNameId && it.value().is_string())
+		{
+			cmapName = it.value();
+		}
+		else if (it.key() == imapId && it.value().is_number())
+		{
+			s.c.imap = it.value();
+		}
+		else if (it.key() == invertMapId && it.value().is_boolean())
+		{
+			s.c.inv = it.value();
+		}
+		else
+		{
+			std::cout << "\nWarning:  unknown JSON key \"" << it.key()
+					<< "\" with value \"" << it.value() << "\"\n";
+		}
+	}
+
+	s.fit = !(bminx && bminy && bmaxx && bmaxy);
 
 	// Echo inputs
+	std::cout << "\n";
 	std::cout << "Image size" << " = " << s.nx << ", " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
@@ -761,7 +808,7 @@ int maph(int argc, char* argv[])
 		s.maxy = avgy + 0.5 * dify;
 	}
 
-	if (s.fit || s.fity)
+	if (s.fit || s.fitx || s.fity)
 		printBounds(s);
 
 	double degPerPix
@@ -785,7 +832,7 @@ int maph(int argc, char* argv[])
 	auto idx = sortidx(img);
 
 	auto pixels = colorPixels(s, img, idx);
-	io = save_png(pixels, s.nx, s.ny, s.fname + s.imgext);
+	io = savePng(pixels, s.nx, s.ny, s.fname + s.imgext);
 	return io;
 }
 

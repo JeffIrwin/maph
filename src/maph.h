@@ -1,7 +1,6 @@
 
 // TODO:
 //
-//     - Refactor
 //     - Gaussian kernel
 //     - Optionally use all colormaps from a colormap file
 //     - More JSON inputs
@@ -13,6 +12,7 @@
 //         * kernel type
 //         * background color:  0, NaN, or other
 //     - Error checking
+//     - Refactor
 //
 
 //======================================================================
@@ -69,6 +69,7 @@ class Settings
 
 		bool fit, fitx, fity;
 		double minx, maxx, miny, maxy;
+		double degPerPix;
 
 		// Kernel radius (pixels)
 		int r;
@@ -91,6 +92,16 @@ class Settings
 		const int bpp = 4;
 
 		const std::string imgext = ".png";
+};
+
+class Data
+{
+	public:
+		std::vector<std::string> gpxs;      // filenames
+		std::vector<double> lats;           // lattitudes
+		std::vector<double> lons;           // longitudes
+		std::vector<unsigned int> iEndSeg;  // index of each segment's end
+		int ntrkptsum;                      // number of trackpoints
 };
 
 class Transformation
@@ -492,26 +503,23 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	return 0;
 }
 
-int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
-		std::vector<double>& lats, std::vector<double>& lons,
-		std::vector<unsigned int>& iEndSeg, int& ntrkptsum)
-// TODO:  encapsulate some of these args.  c.f. similar functions.
+int loadGpxs(Settings&s, Transformation& t, Data& d)
 {
-	ntrkptsum = 0;
+	d.ntrkptsum = 0;
 	double lat, lon;
-	for (int ig = 0; ig < gpxs.size(); ig++)
+	for (int ig = 0; ig < d.gpxs.size(); ig++)
 	{
 		int ntrkpt = 0;
 
-		if (s.verb > 0) std::cout << "GPX file = " << gpxs[ig] << std::endl;
+		if (s.verb > 0) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
 		// TODO:  make these next few lines a function in xml_helper.
 		pugi::xml_document doc;
-		pugi::xml_parse_result result = doc.load_file(gpxs[ig].c_str());
+		pugi::xml_parse_result result = doc.load_file(d.gpxs[ig].c_str());
 		if (!result)
 		{
 			std::cout << "\nError:  cannot open or parse GPX file \""
-					<< gpxs[ig] << "\"." << std::endl;
+					<< d.gpxs[ig] << "\"." << std::endl;
 			return ERR_XML_OPEN;
 		}
 
@@ -531,8 +539,8 @@ int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
 				lon = std::stod(trkpt.attribute("lon").value());
 				//std::cout << "lat, lon = " << lat << ", " << lon << "\n";
 
-				lats.push_back(lat);
-				lons.push_back(lon);
+				d.lats.push_back(lat);
+				d.lons.push_back(lon);
 			}
 
 			if (s.verb > 0) std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
@@ -540,7 +548,7 @@ int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
 			if (t.enable)
 			{
 				std::string fogpx = t.outdir + slash
-						+ gpxs[ig].substr(gpxs[ig].find_last_of(slash) + 1);
+						+ d.gpxs[ig].substr(d.gpxs[ig].find_last_of(slash) + 1);
 
 				if (s.verb > 0) std::cout << "fogpx = " << fogpx << std::endl;
 
@@ -562,21 +570,21 @@ int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
 					unsigned int j = id[it];
 
 					// Translate
-					lons[j] += t.x;
-					lats[j] += t.y;
+					d.lons[j] += t.x;
+					d.lats[j] += t.y;
 
 					// Rotate
-					lon = t.mat[0] * lons[j] + t.mat[1] * lats[j];
-					lat = t.mat[2] * lons[j] + t.mat[3] * lats[j];
+					lon = t.mat[0] * d.lons[j] + t.mat[1] * d.lats[j];
+					lat = t.mat[2] * d.lons[j] + t.mat[3] * d.lats[j];
 
 					ofgpx << "\t\t\t<trkpt lat=\"" << lat
 					                << "\" lon=\"" << lon << "\"/>\n";
 				}
 
-				lats.clear();
-				lats.shrink_to_fit();
-				lons.clear();
-				lons.shrink_to_fit();
+				d.lats.clear();
+				d.lats.shrink_to_fit();
+				d.lons.clear();
+				d.lons.shrink_to_fit();
 
 				ofgpx << "\t\t</trkseg>\n";
 				ofgpx << "\t</trk>\n";
@@ -585,25 +593,25 @@ int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
 				ofgpx.close();
 			}
 
-			ntrkptsum += ntrkpt;
-			iEndSeg.push_back(ntrkptsum - 1);
+			d.ntrkptsum += ntrkpt;
+			d.iEndSeg.push_back(d.ntrkptsum - 1);
 
 		}
 		catch (const std::exception& e)
 		{
 			// Ignore empty GPX files with a warning.
-			std::cout << "\nWarning:  cannot parse GPX file \"" << gpxs[ig]
+			std::cout << "\nWarning:  cannot parse GPX file \"" << d.gpxs[ig]
 					<< "\"." << std::endl;
 			std::cout << e.what() << std::endl;
 			//return ERR_XML_PARSE;
 		}
 	}
 
-	//std::cout << "lats = " << lats << std::endl;
-	//std::cout << "lons = " << lons << std::endl;
-	//std::cout << "iEndSeg = " << iEndSeg << std::endl;
+	//std::cout << "d.lats = " << d.lats << std::endl;
+	//std::cout << "d.lons = " << d.lons << std::endl;
+	//std::cout << "d.iEndSeg = " << d.iEndSeg << std::endl;
 
-	std::cout << "\nTotal number of track points = " << ntrkptsum << std::endl;
+	std::cout << "\nTotal number of track points = " << d.ntrkptsum << std::endl;
 
 	return 0;
 }
@@ -611,7 +619,6 @@ int loadGpxs(Settings&s, Transformation& t, std::vector<std::string>& gpxs,
 std::vector<unsigned int> getKernel(Settings& s)
 {
 	//std::cout << "setting kernel..." << std::endl;
-
 	s.tr1 = 2 * s.r + 1;
 	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
 	int ix, iy, ik;
@@ -637,28 +644,27 @@ std::vector<unsigned int> getKernel(Settings& s)
 	return kernel;
 }
 
-double getAvgLength(std::vector<double>& lats, std::vector<double>& lons,
-		std::vector<unsigned int> iEndSeg, int& ntrkptsum, double& degPerPix)
+double getAvgLength(Settings& s, Data& d)
 {
 	double lensum = 0;
 	unsigned int iseg = 0;
-	for (int i = 0; i < ntrkptsum - 1; i++)
+	for (int i = 0; i < d.ntrkptsum - 1; i++)
 	{
-		if (i == iEndSeg[iseg])
+		if (i == d.iEndSeg[iseg])
 		{
 			iseg++;
 		}
 		else
 		{
-			double len = sqrt(pow(lats[i+1] - lats[i], 2)
-			                + pow(lons[i+1] - lons[i], 2));
+			double len = sqrt(pow(d.lats[i+1] - d.lats[i], 2)
+			                + pow(d.lons[i+1] - d.lons[i], 2));
 			lensum += len;
 			//std::cout << "len = " << len << "\n";
 		}
 	}
 
-	double lenavg = lensum / ntrkptsum;
-	double lenavgpix = lenavg / degPerPix;
+	double lenavg = lensum / d.ntrkptsum;
+	double lenavgpix = lenavg / s.degPerPix;
 
 	//std::cout << "lensum    = " << lensum    << std::endl;
 	//std::cout << "lenavg    = " << lenavg    << std::endl;
@@ -689,9 +695,8 @@ void printProgress(int ip, const std::string pstr)
 	}
 }
 
-std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
-		std::vector<double>& lons, std::vector<unsigned int>& iEndSeg,
-		int& ntrkptsum, double& degPerPix, std::vector<unsigned int>& kernel)
+std::vector<unsigned int> convolute(Settings& s, Data& d,
+		std::vector<unsigned int>& kernel)
 {
 	s.nxy = s.nx * s.ny;
 	std::vector<unsigned int> img(s.nxy);
@@ -707,10 +712,10 @@ std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
 	{
 		std::cout << "Convoluting pointwise..." << std::endl;
 		printBar(np, pstr);
-		for (int i = 0; i < ntrkptsum; i++)
+		for (int i = 0; i < d.ntrkptsum; i++)
 		{
-			printProgress(np * i / ntrkptsum, pstr);
-			addKernel(s, lats[i], lons[i], img, kernel);
+			printProgress(np * i / d.ntrkptsum, pstr);
+			addKernel(s, d.lats[i], d.lons[i], img, kernel);
 		}
 	}
 	else // if (s.isample == 2)
@@ -718,25 +723,25 @@ std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
 		std::cout << "Convoluting linearly..." << std::endl;
 		printBar(np, pstr);
 		unsigned int iseg = 0;
-		for (int i = 0; i < ntrkptsum; i++)
+		for (int i = 0; i < d.ntrkptsum; i++)
 		{
-			printProgress(np * i / ntrkptsum, pstr);
-			if (i == iEndSeg[iseg])
+			printProgress(np * i / d.ntrkptsum, pstr);
+			if (i == d.iEndSeg[iseg])
 			{
 				// Final point
-				addKernel(s, lats[i], lons[i], img, kernel);
+				addKernel(s, d.lats[i], d.lons[i], img, kernel);
 				iseg++;
 			}
 			else
 			{
 				// Linear subsampling
 
-				double x0 = lons[i];
-				double y0 = lats[i];
-				double x1 = lons[i + 1];
-				double y1 = lats[i + 1];
+				double x0 = d.lons[i];
+				double y0 = d.lats[i];
+				double x1 = d.lons[i + 1];
+				double y1 = d.lats[i + 1];
 
-				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / degPerPix;
+				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 				int n = std::max((int) (4 * (dpix / s.r)), 1);
 
 				for (int j = 0; j < n; j++)
@@ -762,6 +767,7 @@ int maph(int argc, char* argv[])
 
 	Settings s;
 	Transformation t;
+	Data d;
 	std::string fjson;
 
 	io = loadArgs(argc, argv, /* s, */ t, fjson);
@@ -777,11 +783,10 @@ int maph(int argc, char* argv[])
 	if (io != 0)
 		return io;
 
-	std::vector<std::string> gpxs;
-	getFiles(s.fgpx, gpxs);
+	getFiles(s.fgpx, d.gpxs);
 
-	//std::cout << "GPX files = " << gpxs << std::endl;
-	std::cout << "Number of GPX files = " << gpxs.size() << std::endl;
+	//std::cout << "GPX files = " << d.gpxs << std::endl;
+	std::cout << "Number of GPX files = " << d.gpxs.size() << std::endl;
 
 	if (t.enable)
 	{
@@ -802,10 +807,7 @@ int maph(int argc, char* argv[])
 		#endif
 	}
 
-	std::vector<double> lats, lons;
-	std::vector<unsigned int> iEndSeg;
-	int ntrkptsum;
-	io = loadGpxs(s, t, gpxs, lats, lons, iEndSeg, ntrkptsum);
+	io = loadGpxs(s, t, d);
 	if (io != 0)
 		return io;
 
@@ -814,10 +816,10 @@ int maph(int argc, char* argv[])
 
 	if (s.fit)
 	{
-		s.minx = *min_element(begin(lons), end(lons));
-		s.maxx = *max_element(begin(lons), end(lons));
-		s.miny = *min_element(begin(lats), end(lats));
-		s.maxy = *max_element(begin(lats), end(lats));
+		s.minx = *min_element(begin(d.lons), end(d.lons));
+		s.maxx = *max_element(begin(d.lons), end(d.lons));
+		s.miny = *min_element(begin(d.lats), end(d.lats));
+		s.maxy = *max_element(begin(d.lats), end(d.lats));
 	}
 
 	if (s.fitx)
@@ -842,13 +844,13 @@ int maph(int argc, char* argv[])
 	if (s.fit || s.fitx || s.fity)
 		printBounds(s);
 
-	double degPerPix
+	s.degPerPix
 			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
 			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
 
 	if (s.isample == 1)
 	{
-		double lenavgpix = getAvgLength(lats, lons, iEndSeg, ntrkptsum, degPerPix);
+		double lenavgpix = getAvgLength(s, d);
 		if (lenavgpix / s.r < 0.5)
 			s.isample = 0;
 		else
@@ -856,7 +858,7 @@ int maph(int argc, char* argv[])
 	}
 
 	auto kernel = getKernel(s);
-	auto img = convolute(s, lats, lons, iEndSeg, ntrkptsum, degPerPix, kernel);
+	auto img = convolute(s, d, kernel);
 	//return 0;  // for benchmarking kernel convolution
 
 	// Sort for histogram coloring.

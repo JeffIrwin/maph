@@ -1,9 +1,9 @@
 
 // TODO:
 //
-//     - Progress bar
 //     - Refactor
 //     - Gaussian kernel
+//     - Optionally use all colormaps from a colormap file
 //     - More JSON inputs
 //         * 'Fit nx' and 'Fit ny' options to change the number of
 //           pixels for a consistent aspect instead of changing
@@ -670,6 +670,25 @@ double getAvgLength(std::vector<double>& lats, std::vector<double>& lons,
 	return lenavgpix;
 }
 
+void printBar(int np, const std::string pstr)
+{
+	std::cout << "|";
+	for (int i = 0; i < np; i++)
+		std::cout << pstr;
+	std::cout << "|" << std::endl;
+	std::cout << "|";
+}
+
+void printProgress(int ip, const std::string pstr)
+{
+	static int ip0 = -1; // this won't work with multiple progress bars
+	if (ip > ip0)
+	{
+		std::cout << pstr << std::flush;
+		ip0 = ip;
+	}
+}
+
 std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
 		std::vector<double>& lons, std::vector<unsigned int>& iEndSeg,
 		int& ntrkptsum, double& degPerPix, std::vector<unsigned int>& kernel)
@@ -680,18 +699,28 @@ std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
 	// Initialize
 	std::fill(img.begin(), img.end(), 0);
 
+	// Number of characters in progress bar
+	int np = 70;
+	const std::string pstr = "=";
+
 	if (s.isample == 0)
 	{
 		std::cout << "Convoluting pointwise..." << std::endl;
+		printBar(np, pstr);
 		for (int i = 0; i < ntrkptsum; i++)
+		{
+			printProgress(np * i / ntrkptsum, pstr);
 			addKernel(s, lats[i], lons[i], img, kernel);
+		}
 	}
 	else // if (s.isample == 2)
 	{
 		std::cout << "Convoluting linearly..." << std::endl;
+		printBar(np, pstr);
 		unsigned int iseg = 0;
 		for (int i = 0; i < ntrkptsum; i++)
 		{
+			printProgress(np * i / ntrkptsum, pstr);
 			if (i == iEndSeg[iseg])
 			{
 				// Final point
@@ -719,6 +748,8 @@ std::vector<unsigned int> convolute(Settings& s, std::vector<double>& lats,
 			}
 		}
 	}
+	std::cout << "|" << std::endl;
+
 	//std::cout << img << std::endl;
 	return img;
 }

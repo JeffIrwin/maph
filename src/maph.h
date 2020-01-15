@@ -618,7 +618,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 
 std::vector<unsigned int> getKernel(Settings& s)
 {
-	//std::cout << "setting kernel..." << std::endl;
+	//std::cout << "getting kernel..." << std::endl;
 	s.tr1 = 2 * s.r + 1;
 	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
 	int ix, iy, ik;
@@ -759,35 +759,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 	return img;
 }
 
-int maph(int argc, char* argv[])
+void setTransformation(Transformation& t)
 {
-	int io = 0;
-
-	std::cout << std::setprecision(16);
-
-	Settings s;
-	Transformation t;
-	Data d;
-	std::string fjson;
-
-	io = loadArgs(argc, argv, /* s, */ t, fjson);
-	if (io != 0)
-		return io;
-
-	json inj;
-	io = loadJson(fjson, inj);
-	if (io != 0)
-		return io;
-
-	io = loadSettings(s, inj, fjson);
-	if (io != 0)
-		return io;
-
-	getFiles(s.fgpx, d.gpxs);
-
-	//std::cout << "GPX files = " << d.gpxs << std::endl;
-	std::cout << "Number of GPX files = " << d.gpxs.size() << std::endl;
-
 	if (t.enable)
 	{
 		t.mat.resize(4);
@@ -806,13 +779,13 @@ int maph(int argc, char* argv[])
 			mkdir(t.outdir.c_str(), 0777);
 		#endif
 	}
+}
 
-	io = loadGpxs(s, t, d);
-	if (io != 0)
-		return io;
-
-	if (t.enable)
-		return 0;
+void setFitting(Settings& s, Data& d)
+{
+	// Get the image bounds depending on which input options were
+	// specified, and from the zoom level, set the sampling
+	// strategy.
 
 	if (s.fit)
 	{
@@ -856,7 +829,47 @@ int maph(int argc, char* argv[])
 		else
 			s.isample = 2;
 	}
+}
 
+int maph(int argc, char* argv[])
+{
+	int io = 0;
+
+	std::cout << std::setprecision(16);
+
+	Settings s;
+	Transformation t;
+	Data d;
+	std::string fjson;
+
+	io = loadArgs(argc, argv, /* s, */ t, fjson);
+	if (io != 0)
+		return io;
+
+	json inj;
+	io = loadJson(fjson, inj);
+	if (io != 0)
+		return io;
+
+	io = loadSettings(s, inj, fjson);
+	if (io != 0)
+		return io;
+
+	getFiles(s.fgpx, d.gpxs);
+
+	//std::cout << "GPX files = " << d.gpxs << std::endl;
+	std::cout << "Number of GPX files = " << d.gpxs.size() << std::endl;
+
+	setTransformation(t);
+
+	io = loadGpxs(s, t, d);
+	if (io != 0)
+		return io;
+
+	if (t.enable)
+		return 0;
+
+	setFitting(s, d);
 	auto kernel = getKernel(s);
 	auto img = convolute(s, d, kernel);
 	//return 0;  // for benchmarking kernel convolution

@@ -1,18 +1,21 @@
 
 // TODO:
 //
-//     - Gaussian kernel
 //     - Optionally use all colormaps from a colormap file
+//     - CSV output with summary statistics
+//     - Parse data from other apps -- pilif/GpxExport for Apple Activity?
+//     - Look into Strava API to automatically pull updated activities
 //     - More JSON inputs
 //         * 'Fit nx' and 'Fit ny' options to change the number of
 //           pixels for a consistent aspect instead of changing
 //           lats/lons
 //         * margin option to expand bounds (regardless of fitting options)
 //         * subsampling step size
-//         * kernel type
 //         * background color:  0, NaN, or other
+//     - Cylindrical kernel
 //     - Error checking
 //     - Refactor
+//         * try/throw/catch?
 //
 
 //======================================================================
@@ -61,6 +64,8 @@ using json = nlohmann::json;
 
 const std::string me = "maph";
 
+enum Kernel {pyramid, cone, gaussian};
+
 class Settings
 {
 	public:
@@ -77,10 +82,19 @@ class Settings
 		// Kernel width
 		int tr1;
 
+		// Coefficient (spikiness) of Gaussian kernel.
+		double gka;
+
+		// Variance of Gaussian kernel.  Note r, gka, and gkb are
+		// not independent.
+		double gkb;
+
 		// isample == 0:  no subsampling, pointwise only
 		// isample == 1:  automatically choose sampling based on avg length
 		// isample == 2:  linear subsampling within every segment
 		int isample;
+
+		Kernel kernel;
 
 		std::string fname;
 		std::string fgpx;
@@ -121,6 +135,17 @@ template<class T> std::ostream& operator<<(std::ostream& stream, const std::vect
 	copy(begin(values), end(values), std::ostream_iterator<T>(stream, ", "));
 	stream << '}';
 	return stream;
+}
+
+std::string getKernelName(Kernel k)
+{
+	// If you like it then you shoulda put a string on it
+	if (k == gaussian)
+		return "gaussian";
+	else if (k == pyramid)
+		return "pyramid";
+	else
+		return "cone";
 }
 
 int savePng(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
@@ -368,6 +393,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::string cmapName = "";
 	s.c.imap = -1;
 	s.c.inv = false;
+	s.gka = 10.0;
+	s.kernel = cone;
 
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
@@ -389,6 +416,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string cmapNameId = "Colormap name";
 	const std::string imapId = "Color map";
 	const std::string invertMapId = "Invert color map";
+	const std::string gaussianAmpId = "Gaussian amplitude";
+	const std::string kernelId = "Kernel";
 
 	for (json::iterator it = inj.begin(); it != inj.end(); it++)
 	{
@@ -464,6 +493,23 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			s.c.inv = it.value();
 		}
+		else if (it.key() == gaussianAmpId && it.value().is_number())
+		{
+			s.gka = it.value();
+		}
+		else if (it.key() == kernelId && it.value().is_string())
+		{
+			if (it.value() == getKernelName(pyramid))
+				s.kernel = pyramid;
+			else if (it.value() == getKernelName(gaussian))
+				s.kernel = gaussian;
+			else if (it.value() == getKernelName(cone))
+				s.kernel = cone;
+			else
+				std::cout << "\nWarning:  unknown kernel value "
+						<< it.value() << ", defaulting to \""
+						<< getKernelName(cone) << "\"\n";
+		}
 		else
 		{
 			std::cout << "\nWarning:  unknown JSON key \"" << it.key()
@@ -485,6 +531,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << verbId << " = " << s.verb << "\n";
 	std::cout << sampleId << " = " << s.isample << "\n";
 	std::cout << radiusId << " = " << s.r << "\n";
+	std::cout << gaussianAmpId << " = " << s.gka << "\n";
+	std::cout << kernelId << " = " << getKernelName(s.kernel) << "\n";
 	std::cout << fitxId << " = " << s.fitx << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
 
@@ -621,8 +669,14 @@ std::vector<unsigned int> getKernel(Settings& s)
 	//std::cout << "getting kernel..." << std::endl;
 	s.tr1 = 2 * s.r + 1;
 	std::vector<unsigned int> kernel(s.tr1 * s.tr1);
+
+	s.gkb = s.r / sqrt(-log(1.0 / s.gka));
+	double gkb2 = s.gkb * s.gkb;
+	//std::cout << "gkb, gkb2 = " << s.gkb << " " << gkb2 << "\n";
+
 	int ix, iy, ik;
 	unsigned int inc;
+
 	for (int dy = -s.r; dy <= s.r; dy++)
 	{
 		iy = dy + s.r;
@@ -631,11 +685,12 @@ std::vector<unsigned int> getKernel(Settings& s)
 		{
 			ix = dx + s.r;
 
-			//// Pyramid kernel
-			//inc = std::max(0, s.r - abs(dx) - abs(dy));
-
-			// Cone kernel, better looking
-			inc = std::max(0, s.r - (int) sqrt(dx*dx + dy*dy));
+			if (s.kernel == pyramid)
+				inc = std::max(0, s.r - abs(dx) - abs(dy));
+			else if (s.kernel == gaussian)
+				inc = s.gka * exp(-(dx*dx + dy*dy) / gkb2);
+			else // cone
+				inc = std::max(0, s.r - (int) sqrt(dx*dx + dy*dy));
 
 			ik = iyk + ix;
 			kernel[ik] = inc;
@@ -824,7 +879,7 @@ void setFitting(Settings& s, Data& d)
 	if (s.isample == 1)
 	{
 		double lenavgpix = getAvgLength(s, d);
-		if (lenavgpix / s.r < 0.5)
+		if (lenavgpix / s.r < 0.5)  // TODO:  this limit depends on kernel type
 			s.isample = 0;
 		else
 			s.isample = 2;

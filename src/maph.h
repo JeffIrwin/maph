@@ -66,6 +66,9 @@ const std::string me = "maph";
 
 enum Kernel {pyramid, cone, gaussian};
 
+// explicitly defined for backwards-compatability
+enum Sampling {pointwise = 0, autosample = 1, linear = 2};
+
 class Settings
 {
 	public:
@@ -89,10 +92,7 @@ class Settings
 		// not independent.
 		double gkb;
 
-		// isample == 0:  no subsampling, pointwise only
-		// isample == 1:  automatically choose sampling based on avg length
-		// isample == 2:  linear subsampling within every segment
-		int isample;
+		Sampling sampling;
 
 		Kernel kernel;
 
@@ -146,6 +146,16 @@ std::string getKernelName(Kernel k)
 		return "pyramid";
 	else
 		return "cone";
+}
+
+std::string getSamplingName(Sampling s)
+{
+	if (s == pointwise)
+		return "pointwise";
+	else if (s == linear)
+		return "linear";
+	else
+		return "autosample";
 }
 
 int savePng(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
@@ -379,7 +389,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.nx = 1280;
 	s.ny = 720;
 	s.verb = 0;
-	s.isample = 1;
+	s.sampling = autosample;
 	s.r = 10;
 	s.minx = 0.0;
 	s.miny = 0.0;
@@ -433,9 +443,24 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			s.verb = it.value();
 		}
-		else if (it.key() == sampleId && it.value().is_number())
+		else if (it.key() == sampleId
+				&& (it.value().is_number() || it.value().is_string()))
 		{
-			s.isample = it.value();
+			if (it.value().is_number())
+				s.sampling = it.value();
+			else
+			{
+				if (it.value() == getSamplingName(pointwise))
+					s.sampling = pointwise;
+				else if (it.value() == getSamplingName(linear))
+					s.sampling = linear;
+				else if (it.value() == getSamplingName(autosample))
+					s.sampling = autosample;
+				else
+					std::cout << "\nWarning:  unknown sampling value "
+							<< it.value() << ", defaulting to \""
+							<< getSamplingName(autosample) << "\"\n";
+			}
 		}
 		else if (it.key() == radiusId && it.value().is_number())
 		{
@@ -529,7 +554,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << imapId << " = " << s.c.imap << "\n";
 	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
-	std::cout << sampleId << " = " << s.isample << "\n";
+	std::cout << sampleId << " = " << getSamplingName(s.sampling) << "\n";
 	std::cout << radiusId << " = " << s.r << "\n";
 	std::cout << gaussianAmpId << " = " << s.gka << "\n";
 	std::cout << kernelId << " = " << getKernelName(s.kernel) << "\n";
@@ -763,7 +788,7 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 	int np = 70;
 	const std::string pstr = "=";
 
-	if (s.isample == 0)
+	if (s.sampling == pointwise)
 	{
 		std::cout << "Convoluting pointwise..." << std::endl;
 		printBar(np, pstr);
@@ -773,7 +798,7 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			addKernel(s, d.lats[i], d.lons[i], img, kernel);
 		}
 	}
-	else // if (s.isample == 2)
+	else
 	{
 		std::cout << "Convoluting linearly..." << std::endl;
 		printBar(np, pstr);
@@ -876,13 +901,13 @@ void setFitting(Settings& s, Data& d)
 			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))
 			/ sqrt(pow(s.nx           , 2) + pow(s.ny           , 2));
 
-	if (s.isample == 1)
+	if (s.sampling == autosample)
 	{
 		double lenavgpix = getAvgLength(s, d);
 		if (lenavgpix / s.r < 0.5)  // TODO:  this limit depends on kernel type
-			s.isample = 0;
+			s.sampling = pointwise;
 		else
-			s.isample = 2;
+			s.sampling = linear;
 	}
 }
 

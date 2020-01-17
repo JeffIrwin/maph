@@ -5,6 +5,7 @@
 //     - CSV output with summary statistics
 //     - Parse data from other apps -- pilif/GpxExport for Apple Activity?
 //     - Look into Strava API to automatically pull updated activities
+//     - Documentation
 //     - More JSON inputs
 //         * 'Fit nx' and 'Fit ny' options to change the number of
 //           pixels for a consistent aspect instead of changing
@@ -700,8 +701,9 @@ std::vector<unsigned int> getKernel(Settings& s)
 	//std::cout << "gkb, gkb2 = " << s.gkb << " " << gkb2 << "\n";
 
 	int ix, iy, ik;
-	unsigned int inc;
+	unsigned int inc, kmax;
 
+	kmax = 0;
 	for (int dy = -s.r; dy <= s.r; dy++)
 	{
 		iy = dy + s.r;
@@ -719,8 +721,23 @@ std::vector<unsigned int> getKernel(Settings& s)
 
 			ik = iyk + ix;
 			kernel[ik] = inc;
+			kmax = std::max(kmax, inc);
 		}
 	}
+
+	unsigned int ndigits = ceil(log10(kmax + 1));
+	if (s.verb > 0)
+	{
+		std::cout << "kernel =\n";// << kernel << std::endl;
+		for (int i = 0; i < s.tr1; i++)
+		{
+			for (int j = i * s.tr1; j < (i+1) * s.tr1; j++)
+				printf(("%" + std::to_string(ndigits+1) + "d").c_str(), kernel[j]);
+			std::cout << "\n";
+		}
+		std::cout << std::endl;
+	}
+
 	return kernel;
 }
 

@@ -190,12 +190,8 @@ int loadColorMapNames(std::string file, std::vector<std::string>& names)
 	if (ext == "xml")
 	{
 		pugi::xml_document doc;
-		pugi::xml_parse_result result = doc.load_file(file.c_str());
-		if (!result)
-		{
-			std::cout << "\nError:  cannot open or parse colormap XML file \"" << file << "\"." << std::endl;
-			return ERR_XML_OPEN;
-		}
+		if (int io = loadXml(file, doc) != 0)
+			return io;
 
 		std::string xquery;
 		pugi::xpath_node x0;
@@ -273,12 +269,8 @@ class ColorMap
 		if (ext == "xml")
 		{
 			pugi::xml_document doc;
-			pugi::xml_parse_result result = doc.load_file(file.c_str());
-			if (!result)
-			{
-				std::cout << "\nError:  cannot open or parse colormap XML file \"" << file << "\"." << std::endl;
-				return ERR_XML_OPEN;
-			}
+			if (int io = loadXml(file, doc) != 0)
+				return io;
 
 			std::string xquery;
 			pugi::xpath_node point0;

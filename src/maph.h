@@ -605,15 +605,9 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 
 		if (s.verb > 0) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
-		// TODO:  make these next few lines a function in xml_helper, c.f. loadColorMapNames
 		pugi::xml_document doc;
-		pugi::xml_parse_result result = doc.load_file(d.gpxs[ig].c_str());
-		if (!result)
-		{
-			std::cout << "\nError:  cannot open or parse GPX file \""
-					<< d.gpxs[ig] << "\"." << std::endl;
-			return ERR_XML_OPEN;
-		}
+		if (int io = loadXml(d.gpxs[ig], doc) != 0)
+			return io;
 
 		std::string xquery;
 		pugi::xpath_node trkpt0;

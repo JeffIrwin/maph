@@ -1,10 +1,10 @@
 
 // TODO:
 //
-//     - Optionally use all colormaps from a colormap file
 //     - CSV output with summary statistics
-//     - Parse data from other apps -- pilif/GpxExport for Apple Activity?
+//     - Parse data from other apps -- Apple Activity?
 //     - Look into Strava API to automatically pull updated activities
+//     - Upload build artifacts?
 //     - Documentation
 //     - More JSON inputs
 //         * 'Fit nx' and 'Fit ny' options to change the number of
@@ -15,6 +15,7 @@
 //         * background color:  0, NaN, or other
 //     - Cylindrical kernel
 //     - Error checking
+//     - Benchmark
 //     - Refactor
 //         * try/throw/catch?
 //
@@ -102,11 +103,14 @@ class Settings
 		int verb;
 
 		ColorMap c;
+		bool allCmaps;
+		std::string cmapFile;
+		std::vector<std::string> mapNames;
 
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
 
-		const std::string imgext = ".png";
+		const std::string dlm = "_-_", imgext = ".png";
 };
 
 class Data
@@ -400,8 +404,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.fity = false;
 	s.fname = fjson.substr(0, fjson.find_last_of("."));
 	s.fgpx = "*.gpx";
-	std::string cmapFile = "";
+	s.cmapFile = "";
 	std::string cmapName = "";
+	s.allCmaps = false;
 	s.c.imap = -1;
 	s.c.inv = false;
 	s.gka = 10.0;
@@ -425,6 +430,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string fgpxId = "GPX files";
 	const std::string cmapFileId = "Colormap file";
 	const std::string cmapNameId = "Colormap name";
+	const std::string allCmapsId = "All colormaps";
 	const std::string imapId = "Color map";
 	const std::string invertMapId = "Invert color map";
 	const std::string gaussianAmpId = "Gaussian amplitude";
@@ -505,7 +511,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		}
 		else if (it.key() == cmapFileId && it.value().is_string())
 		{
-			cmapFile = it.value();
+			s.cmapFile = it.value();
 		}
 		else if (it.key() == cmapNameId && it.value().is_string())
 		{
@@ -518,6 +524,10 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		else if (it.key() == invertMapId && it.value().is_boolean())
 		{
 			s.c.inv = it.value();
+		}
+		else if (it.key() == allCmapsId && it.value().is_boolean())
+		{
+			s.allCmaps = it.value();
 		}
 		else if (it.key() == gaussianAmpId && it.value().is_number())
 		{
@@ -550,8 +560,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << "Image size" << " = " << s.nx << ", " << s.ny << "\n";
 	std::cout << fnameId << " = \"" << s.fname << "\"\n";
 	std::cout << fgpxId << " = \"" << s.fgpx << "\"\n";
-	std::cout << cmapFileId << " = \"" << cmapFile << "\"\n";
+	std::cout << cmapFileId << " = \"" << s.cmapFile << "\"\n";
 	std::cout << cmapNameId << " = \"" << cmapName << "\"\n";
+	std::cout << allCmapsId << " = \"" << s.allCmaps << "\"\n";
 	std::cout << imapId << " = " << s.c.imap << "\n";
 	std::cout << invertMapId << " = " << s.c.inv << "\n";
 	std::cout << verbId << " = " << s.verb << "\n";
@@ -568,10 +579,17 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 
 	std::cout << std::endl;
 
-	s.c.paraView = cmapFile != "" && cmapName != "";
+	s.c.paraView = s.cmapFile != "" && (cmapName != "" || s.allCmaps);
 	if (s.c.paraView)
 	{
-		int io = s.c.load(cmapFile, cmapName);
+		int io;
+		if (s.allCmaps)
+		{
+			io = loadColorMapNames(s.cmapFile, s.mapNames);
+			//std::cout << "mapNames = " << s.mapNames << std::endl;
+		}
+		else
+			io = s.c.load(s.cmapFile, cmapName);
 		if (io != 0) return io;
 	}
 	return 0;
@@ -587,7 +605,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 
 		if (s.verb > 0) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
-		// TODO:  make these next few lines a function in xml_helper.
+		// TODO:  make these next few lines a function in xml_helper, c.f. loadColorMapNames
 		pugi::xml_document doc;
 		pugi::xml_parse_result result = doc.load_file(d.gpxs[ig].c_str());
 		if (!result)
@@ -974,8 +992,25 @@ int maph(int argc, char* argv[])
 	// Sort for histogram coloring.
 	auto idx = sortidx(img);
 
-	auto pixels = colorPixels(s, img, idx);
-	io = savePng(pixels, s.nx, s.ny, s.fname + s.imgext);
+	if (s.allCmaps)
+	{
+		for (int i = 0; i < s.mapNames.size(); i++)
+		{
+			if (io = s.c.load(s.cmapFile, s.mapNames[i]) != 0)
+				return io;
+			auto pixels = colorPixels(s, img, idx);
+			if (io = savePng(pixels, s.nx, s.ny,
+					s.fname + s.dlm + s.mapNames[i] + s.imgext)
+					!= 0)
+				return io;
+		}
+	}
+	else
+	{
+		auto pixels = colorPixels(s, img, idx);
+		io = savePng(pixels, s.nx, s.ny, s.fname + s.imgext);
+	}
+
 	return io;
 }
 

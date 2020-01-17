@@ -182,6 +182,72 @@ std::vector<float> msh2rgb(const std::vector<float>& msh)
 	//return lab2rgb(msh2lab(msh));
 }
 
+int loadColorMapNames(std::string file, std::vector<std::string>& names)
+{
+	names.clear();
+
+	std::string ext = file.substr(file.find_last_of(".") + 1);
+	if (ext == "xml")
+	{
+		pugi::xml_document doc;
+		pugi::xml_parse_result result = doc.load_file(file.c_str());
+		if (!result)
+		{
+			std::cout << "\nError:  cannot open or parse colormap XML file \"" << file << "\"." << std::endl;
+			return ERR_XML_OPEN;
+		}
+
+		std::string xquery;
+		pugi::xpath_node x0;
+		try
+		{
+			xquery = "/ColorMaps/ColorMap";
+			x0 = doc.select_node(xquery.c_str());
+			if (!x0) throw xPathException;
+			for (pugi::xml_node x = x0.node(); x; x = x.next_sibling("ColorMap"))
+				names.push_back(x.attribute("name").value());
+		}
+		catch (const std::exception& e)
+		{
+			std::cout << "\nError:  cannot parse colormap file \"" << file << "\"." << std::endl;
+			std::cout << e.what() << std::endl;
+			return ERR_XML_PARSE;
+		}
+	}
+	else if (ext == "json")
+	{
+		std::ifstream ifs(file);
+		json inj;
+
+		try
+		{
+			ifs >> inj;
+			ifs.close();  // close to release lock on file
+		}
+		catch (const std::exception& e)
+		{
+			std::cout << "\nError:  cannot load JSON colormap file \"" << file << "\"." << std::endl;
+			std::cout << e.what() << std::endl;
+			return ERR_JSON;
+		}
+
+		//std::cout << "Input JSON =\n" << std::setw(4) << inj << "\n" << std::endl;
+
+		unsigned int i = 0;
+		while (i < inj.size())
+		{
+			names.push_back(inj[i]["Name"]);
+			i++;
+		}
+	}
+	else
+	{
+		std::cout << "\nError:  unknown colormap file extension \"." << ext << "\"." << std::endl;
+		return ERR_FILETYPE;
+	}
+	return 0;
+}
+
 class ColorMap
 {
 	public:

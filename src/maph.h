@@ -63,7 +63,7 @@ using json = nlohmann::json;
 
 const std::string me = "maph";
 
-enum Kernel {pyramid, cone, gaussian};
+enum Kernel {cylinder, pyramid, cone, gaussian};
 
 // explicitly defined for backwards-compatability
 enum Sampling {pointwise = 0, autosample = 1, linear = 2};
@@ -144,6 +144,8 @@ std::string getKernelName(Kernel k)
 	// If you like it then you shoulda put a string on it
 	if (k == gaussian)
 		return "gaussian";
+	else if (k == cylinder)
+		return "cylinder";
 	else if (k == pyramid)
 		return "pyramid";
 	else
@@ -546,6 +548,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			if (it.value() == getKernelName(pyramid))
 				s.kernel = pyramid;
+			else if (it.value() == getKernelName(cylinder))
+				s.kernel = cylinder;
 			else if (it.value() == getKernelName(gaussian))
 				s.kernel = gaussian;
 			else if (it.value() == getKernelName(cone))
@@ -739,6 +743,8 @@ std::vector<unsigned int> getKernel(Settings& s)
 				inc = std::max(0, s.r - abs(dx) - abs(dy));
 			else if (s.kernel == gaussian)
 				inc = s.gka * exp(-(dx*dx + dy*dy) / gkb2);
+			else if (s.kernel == cylinder)
+				inc = sqrt(dx*dx + dy*dy) <= s.r ? 1: 0;
 			else // cone
 				inc = std::max(0, s.r - (int) sqrt(dx*dx + dy*dy));
 

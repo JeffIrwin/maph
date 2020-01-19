@@ -1,19 +1,16 @@
 
 // TODO:
 //
+//     - More JSON inputs
+//         * margin option to expand bounds (regardless of fitting options)
+//         * subsampling step size
+//         * background color:  0, NaN, or other
+//     - Cylindrical kernel
 //     - CSV output with summary statistics
 //     - Parse data from other apps -- Apple Activity?
 //     - Look into Strava API to automatically pull updated activities
 //     - Upload build artifacts?
 //     - Documentation
-//     - More JSON inputs
-//         * 'Fit nx' and 'Fit ny' options to change the number of
-//           pixels for a consistent aspect instead of changing
-//           lats/lons
-//         * margin option to expand bounds (regardless of fitting options)
-//         * subsampling step size
-//         * background color:  0, NaN, or other
-//     - Cylindrical kernel
 //     - Error checking
 //     - Benchmark
 //     - Refactor
@@ -77,7 +74,7 @@ class Settings
 
 		int nx, ny, nxy;
 
-		bool fit, fitx, fity;
+		bool fit, fitx, fity, fitnx, fitny;
 		double minx, maxx, miny, maxy;
 		double degPerPix;
 
@@ -402,6 +399,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.maxy = 0.0;
 	s.fitx = false;
 	s.fity = false;
+	s.fitnx = false;
+	s.fitny = false;
 	s.fname = fjson.substr(0, fjson.find_last_of("."));
 	s.fgpx = "*.gpx";
 	s.cmapFile = "";
@@ -426,6 +425,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string maxyId = "Max y";
 	const std::string fitxId = "Fit x";
 	const std::string fityId = "Fit y";
+	const std::string fitnxId = "Fit nx";
+	const std::string fitnyId = "Fit ny";
 	const std::string fnameId = "File name prefix";
 	const std::string fgpxId = "GPX files";
 	const std::string cmapFileId = "Colormap file";
@@ -501,6 +502,14 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			s.fity = it.value();
 		}
+		else if (it.key() == fitnxId && it.value().is_boolean())
+		{
+			s.fitnx = it.value();
+		}
+		else if (it.key() == fitnyId && it.value().is_boolean())
+		{
+			s.fitny = it.value();
+		}
 		else if (it.key() == fnameId && it.value().is_string())
 		{
 			s.fname = it.value();
@@ -572,6 +581,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << kernelId << " = " << getKernelName(s.kernel) << "\n";
 	std::cout << fitxId << " = " << s.fitx << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
+	std::cout << fitnxId << " = " << s.fitnx << "\n";
+	std::cout << fitnyId << " = " << s.fitny << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
 	if (!s.fit)
@@ -904,6 +915,22 @@ void setFitting(Settings& s, Data& d)
 		s.maxy = *max_element(begin(d.lats), end(d.lats));
 	}
 
+	if (s.fitnx)
+	{
+		double avgy = 0.5 * (s.miny + s.maxy);
+		double difx = s.maxx - s.minx;
+		double dify = s.maxy - s.miny;
+		s.nx = s.ny * cos(avgy * pi / 180.0) * difx / dify;
+	}
+
+	if (s.fitny)
+	{
+		double avgy = 0.5 * (s.miny + s.maxy);
+		double difx = s.maxx - s.minx;
+		double dify = s.maxy - s.miny;
+		s.ny = s.nx / cos(avgy * pi / 180.0) * dify / difx;
+	}
+
 	if (s.fitx)
 	{
 		double avgx = 0.5 * (s.minx + s.maxx);
@@ -921,6 +948,11 @@ void setFitting(Settings& s, Data& d)
 		double dify = cos(avgy * pi / 180.0) * s.ny / s.nx * difx;
 		s.miny = avgy - 0.5 * dify;
 		s.maxy = avgy + 0.5 * dify;
+	}
+
+	if (s.fitnx || s.fitny)
+	{
+		std::cout << "Resizing image to " << s.nx << ", " << s.ny << std::endl;
 	}
 
 	if (s.fit || s.fitx || s.fity)

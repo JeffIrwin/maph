@@ -17,7 +17,7 @@ int loadXml(std::string& fxml, pugi::xml_document& doc)
 	pugi::xml_parse_result result = doc.load_file(fxml.c_str());
 	if (!result)
 	{
-		std::cout << "\nError:  cannot open or parse GPX file \""
+		std::cout << "\nError:  cannot open or parse XML file \""
 				<< fxml << "\"." << std::endl;
 		return ERR_XML_OPEN;
 	}

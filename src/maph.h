@@ -2,10 +2,8 @@
 // TODO:
 //
 //     - More JSON inputs
-//         * margin option to expand bounds (regardless of fitting options)
 //         * subsampling step size
 //         * background color:  0, NaN, or other
-//     - Cylindrical kernel
 //     - CSV output with summary statistics
 //     - Parse data from other apps -- Apple Activity?
 //     - Look into Strava API to automatically pull updated activities
@@ -75,7 +73,7 @@ class Settings
 		int nx, ny, nxy;
 
 		bool fit, fitx, fity, fitnx, fitny;
-		double minx, maxx, miny, maxy;
+		double minx, maxx, miny, maxy, margin;
 		double degPerPix;
 
 		// Kernel radius (pixels)
@@ -399,6 +397,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.miny = 0.0;
 	s.maxx = 0.0;
 	s.maxy = 0.0;
+	s.margin = 0.0;
 	s.fitx = false;
 	s.fity = false;
 	s.fitnx = false;
@@ -425,6 +424,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string minyId = "Min y";
 	const std::string maxxId = "Max x";
 	const std::string maxyId = "Max y";
+	const std::string marginId = "Margin";
 	const std::string fitxId = "Fit x";
 	const std::string fityId = "Fit y";
 	const std::string fitnxId = "Fit nx";
@@ -495,6 +495,10 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			s.maxy = it.value();
 			bmaxy = true;
+		}
+		else if (it.key() == marginId && it.value().is_number())
+		{
+			s.margin = it.value();
 		}
 		else if (it.key() == fitxId && it.value().is_boolean())
 		{
@@ -583,6 +587,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << radiusId << " = " << s.r << "\n";
 	std::cout << gaussianAmpId << " = " << s.gka << "\n";
 	std::cout << kernelId << " = " << getKernelName(s.kernel) << "\n";
+	std::cout << marginId << " = " << s.margin << "\n";
 	std::cout << fitxId << " = " << s.fitx << "\n";
 	std::cout << fityId << " = " << s.fity << "\n";
 	std::cout << fitnxId << " = " << s.fitnx << "\n";
@@ -956,12 +961,19 @@ void setFitting(Settings& s, Data& d)
 		s.maxy = avgy + 0.5 * dify;
 	}
 
+	double difx = s.maxx - s.minx;
+	double dify = s.maxy - s.miny;
+	s.minx -= s.margin * difx;
+	s.maxx += s.margin * difx;
+	s.miny -= s.margin * dify;
+	s.maxy += s.margin * dify;
+
 	if (s.fitnx || s.fitny)
 	{
 		std::cout << "Resizing image to " << s.nx << ", " << s.ny << std::endl;
 	}
 
-	if (s.fit || s.fitx || s.fity)
+	if (s.fit || s.fitx || s.fity || s.margin != 0.0)
 		printBounds(s);
 
 	s.degPerPix

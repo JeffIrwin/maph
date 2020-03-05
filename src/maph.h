@@ -4,7 +4,6 @@
 //     - More JSON inputs
 //         * subsampling step size
 //         * background color:  0, NaN, or other
-//     - CSV output with summary statistics
 //     - Parse data from other apps -- Apple Activity?
 //     - Look into Strava API to automatically pull updated activities
 //     - Upload build artifacts?
@@ -96,6 +95,8 @@ class Settings
 		std::string fname;
 		std::string fgpx;
 		int verb;
+
+		bool stat;
 
 		ColorMap c;
 		bool allCmaps;
@@ -324,9 +325,10 @@ int usage()
 	return ERR_CMD_ARG;
 }
 
-int loadArgs(int argc, char* argv[], /* Settings& s, */ Transformation& t, std::string& fjson)
+int loadArgs(int argc, char* argv[], Settings& s, Transformation& t, std::string& fjson)
 {
 	t.enable = false;
+	s.stat = false;
 
 	if (argc < 2)
 	{
@@ -352,6 +354,11 @@ int loadArgs(int argc, char* argv[], /* Settings& s, */ Transformation& t, std::
 				std::cout << "Y translation = " << t.y   << "\n";
 				std::cout << "Rotation      = " << t.rot << "\n";
 				std::cout << std::endl;
+			}
+			else if (str == "-s")
+			{
+				// Summary statistics
+				s.stat = true;
 			}
 			else
 				fjson = str;
@@ -615,6 +622,35 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	return 0;
 }
 
+double distance(double lat1i, double lon1i, double lat2i, double lon2i)
+{
+	// Use the haversine formula to get the distance in miles
+	// between two lat/lon points on the Earth
+
+	double r = 3958.7613;  // mean radius
+
+	//std::cout << "lats/lons = " << lat1i << " " << lon1i
+	//                     << " " << lat2i << " " << lon2i << "\n";
+
+	// Radians
+	double lat1 = lat1i * pi / 180.0;
+	double lon1 = lon1i * pi / 180.0;
+	double lat2 = lat2i * pi / 180.0;
+	double lon2 = lon2i * pi / 180.0;
+
+	double d = 2 * r * asin(sqrt(         pow(sin(0.5 * (lat2 - lat1)), 2)
+	            + cos(lat1) * cos(lat2) * pow(sin(0.5 * (lon2 - lon1)), 2)));
+
+	//if (d > 1.0)
+	//{
+	//	std::cout << "d = " << d << "\n";
+	//	std::cout << "lats/lons = " << lat1i << " " << lon1i
+	//	                     << " " << lat2i << " " << lon2i << "\n";
+	//}
+
+	return d;
+}
+
 int loadGpxs(Settings&s, Transformation& t, Data& d)
 {
 	d.ntrkptsum = 0;
@@ -622,8 +658,9 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 	for (int ig = 0; ig < d.gpxs.size(); ig++)
 	{
 		int ntrkpt = 0;
+		double dist = 0.0;
 
-		if (s.verb > 0) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
+		if (s.verb > 0 || s.stat) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
 		pugi::xml_document doc;
 		if (int io = loadXml(d.gpxs[ig], doc) != 0)
@@ -647,8 +684,20 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 
 				d.lats.push_back(lat);
 				d.lons.push_back(lon);
+
+				if (s.stat)
+				{
+					if (ntrkpt > 1)
+					{
+						dist += distance(d.lats[d.ntrkptsum + ntrkpt - 2],
+						                 d.lons[d.ntrkptsum + ntrkpt - 2],
+						                 d.lats[d.ntrkptsum + ntrkpt - 1],
+						                 d.lons[d.ntrkptsum + ntrkpt - 1]);
+					}
+				}
 			}
 
+			if (s.stat) std::cout << "Distance = " << dist << " mi\n";
 			if (s.verb > 0) std::cout << "\tNumber of track points = " << ntrkpt << std::endl;
 
 			if (t.enable)
@@ -1001,7 +1050,7 @@ int maph(int argc, char* argv[])
 	Data d;
 	std::string fjson;
 
-	io = loadArgs(argc, argv, /* s, */ t, fjson);
+	io = loadArgs(argc, argv, s, t, fjson);
 	if (io != 0)
 		return io;
 

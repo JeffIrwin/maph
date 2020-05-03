@@ -1,5 +1,5 @@
 # CMake compile time products
-target/
+build/
 *.obj
 *.exe
 

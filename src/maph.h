@@ -177,6 +177,7 @@ int savePng(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
 
 void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 {
+	//std::cout << "starting getFiles..." << std::endl;
 #if defined(_WIN32) || defined(_WIN64)
 
 	std::replace(pattern.begin(), pattern.end(), '/', '\\');
@@ -188,6 +189,8 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 	// There are some fancy Windows API methods for calling dir, but
 	// they don't work with wildcards!
 	std::string ftmp = std::tmpnam(nullptr);
+	ftmp = "." + ftmp;
+	//std::cout << "ftmp = " << ftmp << std::endl;
 	std::string cmd = (std::string) "dir /b " + pattern + " > " + ftmp;
 	system(cmd.c_str());
 
@@ -197,7 +200,9 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 	{
 		// Dir lists the filename but not its path, so we need to
 		// add it back.
-		fileList.push_back(dir + "\\" + line);
+		std::string file = dir + slash + line;
+		//std::replace(file.begin(), file.end(), '\\', '/');
+		fileList.push_back(file);
 	}
 
 	ifs.close();
@@ -220,6 +225,7 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 		globfree(&globbuf);
 
 #endif
+	//std::cout << "done getFiles..." << std::endl;
 }
 
 void printBounds(const Settings& s)
@@ -375,7 +381,7 @@ int loadArgs(int argc, char* argv[], Settings& s, Transformation& t, std::string
 int loadJson(std::string& fjson, json& inj)
 {
 	std::cout << "Loading JSON input file \"" << fjson << "\" ..." << std::endl;
-	std::ifstream ifs(fjson);
+	std::ifstream ifs(fjson, std::ifstream::in);
 
 	try
 	{
@@ -622,15 +628,33 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	return 0;
 }
 
-double distance(double lat1i, double lon1i, double lat2i, double lon2i)
+double distance(double lat1i, double lon1i, double lat2i, double lon2i,
+		double ele1i, double ele2i)
 {
 	// Use the haversine formula to get the distance in miles
-	// between two lat/lon points on the Earth
+	// between two lat/lon (degrees) / elevation (meters) points on
+	// the Earth
 
-	double r = 3958.7613;  // mean radius
+	//double r = 3958.7613;   // mean radius (mi)
+	double r = 3949.9028;   // polar radius (mi)
+	double mipm = 1609.34;  // miles per meter
 
+	// Fudge factors are for matching 2939617387.gpx to strava
+
+	//double fudge = 1.0;
+	//double fudge = 0.9910412; // haversine w/o ele
+	//double fudge = 0.9902064;  // haversine w/ ele
+	//double fudge = 0.9873515;  // WGS-84 w/ ele
+	double fudge = 0.9881791;  // WGS-84 w/o ele.  Closest so far.
+
+	// WGS-84
+	double a = 6378137.0   ;  // equatorial radius     (m)
+	double b = 6356752.3142;  // polar semi-minor axis (m)
+
+	//std::cout << "pi = " << pi << "\n";
 	//std::cout << "lats/lons = " << lat1i << " " << lon1i
-	//                     << " " << lat2i << " " << lon2i << "\n";
+	//                     << " " << lat2i << " " << lon2i
+	//                     << " " << ele1i << " " << ele2i << "\n";
 
 	// Radians
 	double lat1 = lat1i * pi / 180.0;
@@ -638,8 +662,33 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i)
 	double lat2 = lat2i * pi / 180.0;
 	double lon2 = lon2i * pi / 180.0;
 
-	double d = 2 * r * asin(sqrt(         pow(sin(0.5 * (lat2 - lat1)), 2)
-	            + cos(lat1) * cos(lat2) * pow(sin(0.5 * (lon2 - lon1)), 2)));
+	//// WGS-84
+
+	// TODO:  function
+	double n1 = pow(a, 2) / sqrt(pow(a, 2) * pow(cos(lat1), 2) + pow(b, 2) * pow(sin(lat1), 2));
+	double x1 = (              n1 + ele1i) * cos(lat1) * cos(lon1);
+	double y1 = (              n1 + ele1i) * cos(lat1) * sin(lon1);
+	double z1 = (pow(b/a, 2) * n1 + ele1i) * sin(lat1);
+
+	double n2 = pow(a, 2) / sqrt(pow(a, 2) * pow(cos(lat2), 2) + pow(b, 2) * pow(sin(lat2), 2));
+	double x2 = (              n2 + ele2i) * cos(lat2) * cos(lon2);
+	double y2 = (              n2 + ele2i) * cos(lat2) * sin(lon2);
+	double z2 = (pow(b/a, 2) * n2 + ele2i) * sin(lat2);
+
+	double d = sqrt(pow(x2-x1, 2) + pow(y2-y1, 2) + pow(z2-z1, 2));
+	d = sqrt(pow(d, 2) - pow(ele2i - ele1i, 2));
+	d /= mipm;
+
+	// TODO:  try sphere with line segments (NOT haversine
+	// geodesic).  Nothing else matches so far, even with fudge
+	// factors.
+
+	//// Haversine on a sphere
+	//double d = 2 * r * asin(sqrt(         pow(sin(0.5 * (lat2 - lat1)), 2)
+	//            + cos(lat1) * cos(lat2) * pow(sin(0.5 * (lon2 - lon1)), 2)));
+
+	//// Pythagoras for adding elevation
+	//d = sqrt(pow(d, 2) + pow((ele2i - ele1i) / mipm, 2));
 
 	//if (d > 1.0)
 	//{
@@ -647,6 +696,8 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i)
 	//	std::cout << "lats/lons = " << lat1i << " " << lon1i
 	//	                     << " " << lat2i << " " << lon2i << "\n";
 	//}
+
+	d *= fudge;
 
 	return d;
 }
@@ -659,6 +710,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 	{
 		int ntrkpt = 0;
 		double dist = 0.0;
+		double ele, ele0;
 
 		if (s.verb > 0 || s.stat) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
@@ -682,6 +734,11 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 				lon = std::stod(trkpt.attribute("lon").value());
 				//std::cout << "lat, lon = " << lat << ", " << lon << "\n";
 
+				//// TODO:  this needs error handling
+				//ele0 = ele;
+				//ele = std::stod(trkpt.child_value("ele"));
+				//std::cout << "ele = " << ele << "\n";
+
 				d.lats.push_back(lat);
 				d.lons.push_back(lon);
 
@@ -689,10 +746,16 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 				{
 					if (ntrkpt > 1)
 					{
+						// TODO:  this doesn't match strava exactly.
+						// Need to account for elevation (careful,
+						// GPX is in meters) and maybe a better (not
+						// just spherical) geophysical model.
+
 						dist += distance(d.lats[d.ntrkptsum + ntrkpt - 2],
 						                 d.lons[d.ntrkptsum + ntrkpt - 2],
 						                 d.lats[d.ntrkptsum + ntrkpt - 1],
-						                 d.lons[d.ntrkptsum + ntrkpt - 1]);
+						                 d.lons[d.ntrkptsum + ntrkpt - 1],
+						                 ele0, ele);
 					}
 				}
 			}

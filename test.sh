@@ -10,7 +10,7 @@ expectedoutdir=./data/expected-output
 outputext=png
 use_stdin="false"
 use_pushpop="false"
-use_defaultgen="true"
+#use_defaultgen="true"
 
 #===============================================================================
 

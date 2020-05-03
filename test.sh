@@ -4,7 +4,7 @@ inputs=./data/*.json
 
 frames=( )
 
-exebase=Release/maph
+exebase=maph
 outdir=./data
 expectedoutdir=./data/expected-output
 outputext=png

@@ -51,7 +51,7 @@ using json = nlohmann::json;
 
 // Custom
 
-#include <colormap.h>
+#include <colormapper.h>
 #include <xml_helper.h>
 #include <constants.h>
 #include <sort.h>

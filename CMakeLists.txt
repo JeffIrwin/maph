@@ -20,14 +20,20 @@ set(MAPH_DIR src)
 set(SUBMODULE_DIR submodules)
 
 set(PNG_DIR ${SUBMODULE_DIR}/lodepng)
-set(JSON_DIR ${SUBMODULE_DIR}/json/single_include/nlohmann)
-set(XML_DIR ${SUBMODULE_DIR}/pugixml/src)
+set(COLORMAPPER_DIR ${SUBMODULE_DIR}/colormapper)
+
+add_subdirectory(${COLORMAPPER_DIR})
 
 include_directories(${MAPH_DIR})
 
-include_directories(${PNG_DIR})
-include_directories(${JSON_DIR})
-include_directories(${XML_DIR})
+include_directories(
+	${PNG_DIR}
+	${COLORMAPPER_DIR}
+	)
 
-add_executable(${PROJECT} src/main.cpp ${PNG_DIR}/lodepng.cpp ${XML_DIR}/pugixml.cpp)
+add_executable(${PROJECT} src/main.cpp ${PNG_DIR}/lodepng.cpp)
+
+target_link_libraries(${PROJECT}
+	colormapper
+	)
 

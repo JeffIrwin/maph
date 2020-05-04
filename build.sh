@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# For VS, his needs to be run from a git bash shell which has also sourced the
+# For VS, this needs to be run from a git bash shell which has also sourced the
 # environment variables for Visual Studio.  To do so, start "VS2015 x64 Native
 # Tools Command Prompt", and then run "C:\Program Files\Git\git-bash.exe".
 

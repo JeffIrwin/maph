@@ -13,3 +13,6 @@
 [submodule "submodules/bat"]
 	path = submodules/bat
 	url = https://github.com/JeffIrwin/bat
+[submodule "submodules/colormapper"]
+	path = submodules/colormapper
+	url = https://github.com/JeffIrwin/colormapper

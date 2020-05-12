@@ -420,10 +420,10 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.cmapFile = "";
 	std::string cmapName = "";
 	s.allCmaps = false;
-	s.c.imap = -1;
-	s.c.inv = false;
 	s.gka = 10.0;
 	s.kernel = cone;
+
+	std::cout << "s.c.imap = " << s.c.imap << "\n";
 
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
@@ -612,8 +612,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 
 	std::cout << std::endl;
 
-	s.c.paraView = s.cmapFile != "" && (cmapName != "" || s.allCmaps);
-	if (s.c.paraView)
+	if (s.cmapFile != "" && (cmapName != "" || s.allCmaps))
 	{
 		int io;
 		if (s.allCmaps)

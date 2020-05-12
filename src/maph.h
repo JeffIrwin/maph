@@ -189,8 +189,13 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 	// There are some fancy Windows API methods for calling dir, but
 	// they don't work with wildcards!
 	std::string ftmp = std::tmpnam(nullptr);
-	ftmp = "." + ftmp;
+
+	// In cmd, ftmp is a full path, e.g.
+	// "C:\Users\jirwi\AppData\Local\Temp\s26c.0".  In git bash, it
+	// is just "\sgjg.", so we need to prepend a leading ".".
+	if (ftmp.substr(0, 1) == "\\") ftmp = "." + ftmp;
 	//std::cout << "ftmp = " << ftmp << std::endl;
+
 	std::string cmd = (std::string) "dir /b " + pattern + " > " + ftmp;
 	system(cmd.c_str());
 
@@ -202,6 +207,7 @@ void getFiles(std::string &pattern, std::vector<std::string> &fileList)
 		// add it back.
 		std::string file = dir + slash + line;
 		//std::replace(file.begin(), file.end(), '\\', '/');
+		//std::cout << "file = " << file << "\n";
 		fileList.push_back(file);
 	}
 
@@ -423,8 +429,6 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.gka = 10.0;
 	s.kernel = cone;
 
-	std::cout << "s.c.imap = " << s.c.imap << "\n";
-
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
 	// JSON keys
@@ -454,6 +458,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 
 	for (json::iterator it = inj.begin(); it != inj.end(); it++)
 	{
+		//std::cout << "\nkey = " << it.key();
 		if (it.key() == sizexId && it.value().is_number())
 		{
 			s.nx = it.value();

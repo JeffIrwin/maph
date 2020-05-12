@@ -28,7 +28,6 @@ include_directories(${MAPH_DIR})
 
 include_directories(
 	${PNG_DIR}
-	${COLORMAPPER_DIR}
 	)
 
 add_executable(${PROJECT} src/main.cpp ${PNG_DIR}/lodepng.cpp)

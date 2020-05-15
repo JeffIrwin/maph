@@ -12,7 +12,6 @@
 
 // Error return codes
 const int ERR_CMD_ARG   = -1;
-const int ERR_PNG       = -5;
 
 #endif  // INCLUDE_CONSTANTS_H_
 

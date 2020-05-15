@@ -45,16 +45,12 @@ using json = nlohmann::json;
 
 #include <pugixml.hpp>
 
-#include <lodepng.h>
-
 //======================================================================
 
 // Custom
 
 #include <colormapper.h>
-#include <xml_helper.h>
 #include <constants.h>
-#include <sort.h>
 
 //======================================================================
 
@@ -159,20 +155,6 @@ std::string getSamplingName(Sampling s)
 		return "linear";
 	else
 		return "autosample";
-}
-
-int savePng(const std::vector<uint8_t>& b, int nx, int ny, std::string f)
-{
-	std::cout << "Writing file \"" << f << "\" ..." << std::endl;
-	std::vector<uint8_t> imageBuffer;
-	unsigned error = lodepng::encode(imageBuffer, b, nx, ny);
-	if (error)
-	{
-		std::cout << "\nError: PNG encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
-		return ERR_PNG;
-	}
-	lodepng::save_file(imageBuffer, f);
-	return 0;
 }
 
 void getFiles(std::string &pattern, std::vector<std::string> &fileList)

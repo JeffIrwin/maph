@@ -19,18 +19,13 @@ set(MAPH_DIR src)
 
 set(SUBMODULE_DIR submodules)
 
-set(PNG_DIR ${SUBMODULE_DIR}/lodepng)
 set(COLORMAPPER_DIR ${SUBMODULE_DIR}/colormapper)
 
 add_subdirectory(${COLORMAPPER_DIR})
 
 include_directories(${MAPH_DIR})
 
-include_directories(
-	${PNG_DIR}
-	)
-
-add_executable(${PROJECT} src/main.cpp ${PNG_DIR}/lodepng.cpp)
+add_executable(${PROJECT} src/main.cpp)
 
 target_link_libraries(${PROJECT}
 	colormapper

@@ -10,6 +10,8 @@
 	const std::string slash = "/";
 #endif
 
+const auto pi = irwincolor::pi;
+
 // Error return codes
 const int ERR_CMD_ARG   = -1;
 

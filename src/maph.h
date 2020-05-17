@@ -94,7 +94,7 @@ class Settings
 
 		bool stat;
 
-		ColorMap c;
+		irwincolor::ColorMap c;
 		bool allCmaps;
 		std::string cmapFile;
 		std::vector<std::string> mapNames;
@@ -274,7 +274,7 @@ std::vector<uint8_t> colorPixels(const Settings& s,
 		pix[ib + 0] = rgb[0];
 		pix[ib + 1] = rgb[1];
 		pix[ib + 2] = rgb[2];
-		pix[ib + 3] = twofivefive;  // alpha
+		pix[ib + 3] = irwincolor::twofivefive;  // alpha
 	}
 	return pix;
 }
@@ -380,7 +380,7 @@ int loadJson(std::string& fjson, json& inj)
 	{
 		std::cout << "\nError:  cannot load JSON input file \"" << fjson << "\"." << std::endl;
 		std::cout << e.what() << std::endl;
-		return ERR_JSON;
+		return irwincolor::ERR_JSON;
 	}
 
 	return 0;
@@ -604,7 +604,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		int io;
 		if (s.allCmaps)
 		{
-			io = loadColorMapNames(s.cmapFile, s.mapNames);
+			io = irwincolor::loadColorMapNames(s.cmapFile, s.mapNames);
 			//std::cout << "mapNames = " << s.mapNames << std::endl;
 		}
 		else
@@ -701,7 +701,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 		if (s.verb > 0 || s.stat) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
 		pugi::xml_document doc;
-		if (int io = loadXml(d.gpxs[ig], doc) != 0)
+		if (int io = irwincolor::loadXml(d.gpxs[ig], doc) != 0)
 			return io;
 
 		std::string xquery;
@@ -710,7 +710,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 		{
 			xquery = "/gpx/trk/trkseg/trkpt";
 			trkpt0 = doc.select_node(xquery.c_str());
-			if (!trkpt0) throw xPathException;
+			if (!trkpt0) throw irwincolor::xPathException;
 
 			for (pugi::xml_node trkpt = trkpt0.node(); trkpt;
 					trkpt = trkpt.next_sibling("trkpt"))
@@ -1132,7 +1132,7 @@ int maph(int argc, char* argv[])
 	//return 0;  // for benchmarking kernel convolution
 
 	// Sort for histogram coloring.
-	auto idx = sortidx(img);
+	auto idx = irwincolor::sortidx(img);
 
 	if (s.allCmaps)
 	{
@@ -1141,7 +1141,7 @@ int maph(int argc, char* argv[])
 			if (io = s.c.load(s.cmapFile, s.mapNames[i]) != 0)
 				return io;
 			auto pixels = colorPixels(s, img, idx);
-			if (io = savePng(pixels, s.nx, s.ny,
+			if (io = irwincolor::savePng(pixels, s.nx, s.ny,
 					s.fname + s.dlm + s.mapNames[i] + s.imgext)
 					!= 0)
 				return io;
@@ -1150,7 +1150,7 @@ int maph(int argc, char* argv[])
 	else
 	{
 		auto pixels = colorPixels(s, img, idx);
-		io = savePng(pixels, s.nx, s.ny, s.fname + s.imgext);
+		io = irwincolor::savePng(pixels, s.nx, s.ny, s.fname + s.imgext);
 	}
 
 	return io;

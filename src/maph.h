@@ -61,6 +61,10 @@ enum Kernel {cylinder, pyramid, cone, gaussian};
 // explicitly defined for backwards-compatability
 enum Sampling {pointwise = 0, autosample = 1, linear = 2};
 
+// Also canoe, e-bike ride, etc. but those are not supported here
+// (mainly because I've never done them personally!)
+enum Type {hike, nordicSki, ride, run, walk};
+
 class Settings
 {
 	public:
@@ -98,6 +102,10 @@ class Settings
 		bool allCmaps;
 		std::string cmapFile;
 		std::vector<std::string> mapNames;
+
+		// Filter activity type?
+		bool filterType;
+		Type type;
 
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
@@ -155,6 +163,35 @@ std::string getSamplingName(Sampling s)
 		return "linear";
 	else
 		return "autosample";
+}
+
+std::string getTypeName(Type t)
+{
+	if (t == hike)
+		return "Hike";
+	if (t == nordicSki)
+		return "Nordic Ski";
+	else if (t == ride)
+		return "Ride";
+	else if (t == walk)
+		return "Walk";
+	else
+		return "Run";
+}
+
+int getTypeInt(Type t)
+{
+	// Is this a strava convention?  Or GPX standard?
+	if (t == hike)
+		return 4;
+	if (t == nordicSki)
+		return 7;
+	else if (t == ride)
+		return 1;
+	else if (t == walk)
+		return 10;
+	else // run
+		return 9;
 }
 
 void getFiles(std::string &pattern, std::vector<std::string> &fileList)
@@ -410,6 +447,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.allCmaps = false;
 	s.gka = 10.0;
 	s.kernel = cone;
+	s.filterType = false;
 
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
@@ -437,6 +475,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string invertMapId = "Invert color map";
 	const std::string gaussianAmpId = "Gaussian amplitude";
 	const std::string kernelId = "Kernel";
+	const std::string typeId = "Type";
 
 	for (json::iterator it = inj.begin(); it != inj.end(); it++)
 	{
@@ -562,6 +601,26 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 				std::cout << "\nWarning:  unknown kernel value "
 						<< it.value() << ", defaulting to \""
 						<< getKernelName(cone) << "\"\n";
+		}
+		else if (it.key() == typeId && it.value().is_string())
+		{
+			s.filterType = true;
+			if (it.value() == getTypeName(hike))
+				s.type = hike;
+			else if (it.value() == getTypeName(nordicSki))
+				s.type = nordicSki;
+			else if (it.value() == getTypeName(ride))
+				s.type = ride;
+			else if (it.value() == getTypeName(run))
+				s.type = run;
+			else if (it.value() == getTypeName(walk))
+				s.type = walk;
+			else
+			{
+				s.filterType = false;
+				std::cout << "\nWarning:  unknown type value "
+						<< it.value() << ", defaulting to all activity types.\n";
+			}
 		}
 		else
 		{
@@ -705,9 +764,21 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 			return io;
 
 		std::string xquery;
-		pugi::xpath_node trkpt0;
+		pugi::xpath_node trkpt0, trk;
 		try
 		{
+			if (s.filterType)
+			{
+				xquery = "/gpx/trk";
+				trk = doc.select_node(xquery.c_str());
+				if (!trk) throw irwincolor::xPathException;
+
+				int typel = std::stoi(trk.node().child_value("type"));
+				//std::cout << "typel = " << typel << "\n";
+
+				if (typel != getTypeInt(s.type)) continue;
+			}
+
 			xquery = "/gpx/trk/trkseg/trkpt";
 			trkpt0 = doc.select_node(xquery.c_str());
 			if (!trkpt0) throw irwincolor::xPathException;

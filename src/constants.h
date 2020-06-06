@@ -10,6 +10,7 @@
 	const std::string slash = "/";
 #endif
 
+// Is there a better way to do this?
 const auto pi = irwincolor::pi;
 
 // Error return codes

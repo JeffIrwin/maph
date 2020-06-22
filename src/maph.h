@@ -437,7 +437,7 @@ std::tm str2tm(std::string str)
 	//std::cout << "str = " << str << std::endl;
 
 	std::tm tm = {};
-	std::istringstream ss(str);
+	std::istringstream ss(str.c_str());
 
 	// ISO 8601:  YYYY-MM-DD"T"hh:mm::ss"Z"
 	ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");

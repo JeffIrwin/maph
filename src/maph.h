@@ -109,8 +109,9 @@ class Settings
 		Type type;
 
 		// Filter by start/end date?
-		bool filterAfter;
-		std::tm after;
+		bool filterAfter, filterBefore;
+		std::tm aftertm, beforetm;
+		time_t after, before;
 
 		// Bytes per pixel:  RGBA
 		const int bpp = 4;
@@ -473,6 +474,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.kernel = cone;
 	s.filterType = false;
 	s.filterAfter = false;
+	s.after = 0;
+	s.filterBefore = false;
+	s.before = 0;
 
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
@@ -502,6 +506,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string kernelId = "Kernel";
 	const std::string typeId = "Type";
 	const std::string afterId = "After";
+	const std::string beforeId = "Before";
 
 	for (json::iterator it = inj.begin(); it != inj.end(); it++)
 	{
@@ -651,7 +656,14 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		else if (it.key() == afterId && it.value().is_string())
 		{
 			s.filterAfter = true;
-			s.after = str2tm((std::string) it.value());
+			s.aftertm = str2tm((std::string) it.value());
+			s.after = mktime(&s.aftertm);
+		}
+		else if (it.key() == beforeId && it.value().is_string())
+		{
+			s.filterBefore = true;
+			s.beforetm = str2tm((std::string) it.value());
+			s.before = mktime(&s.beforetm);
 		}
 		else
 		{
@@ -683,7 +695,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << fitnxId << " = " << s.fitnx << "\n";
 	std::cout << fitnyId << " = " << s.fitny << "\n";
 	std::cout << typeId << " = " << getTypeName(s.type) << "\n";
-	std::cout << afterId << " = " << std::put_time(&s.after, "%c") << "\n";
+	std::cout << afterId << " = " << std::put_time(&s.aftertm, "%c") << "\n";
+	std::cout << beforeId << " = " << std::put_time(&s.beforetm, "%c") << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
 	if (!s.fit)
@@ -812,7 +825,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 				if (typel != getTypeInt(s.type)) continue;
 			}
 
-			if (s.filterAfter)
+			if (s.filterAfter || s.filterBefore)
 			{
 				xquery = "/gpx/metadata";
 				pugi::xpath_node meta = doc.select_node(xquery.c_str());
@@ -822,8 +835,11 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 				//std::cout << "time = " << time << "\n";
 
 				std::tm t = str2tm(time);
+				time_t tt = mktime(&t);
 
-				if (mktime(&t) < mktime(&s.after)) continue;
+				if (s.filterBefore && s.before < tt     ) continue;
+				if (s.filterAfter  &&       tt < s.after) continue;
+
 			}
 
 			xquery = "/gpx/trk/trkseg/trkpt";

@@ -695,8 +695,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << fitnxId << " = " << s.fitnx << "\n";
 	std::cout << fitnyId << " = " << s.fitny << "\n";
 	std::cout << typeId << " = " << getTypeName(s.type) << "\n";
-	std::cout << afterId << " = " << std::put_time(&s.aftertm, "%c") << "\n";
-	std::cout << beforeId << " = " << std::put_time(&s.beforetm, "%c") << "\n";
+
+	if (s.filterAfter) std::cout << afterId << " = " << std::put_time(&s.aftertm, "%c") << "\n";
+	if (s.filterBefore) std::cout << beforeId << " = " << std::put_time(&s.beforetm, "%c") << "\n";
 
 	//std::cout << "s.fit = " << s.fit << "\n";
 	if (!s.fit)

@@ -4,9 +4,16 @@
 
 Make a heatmap of everywhere you've worked out from Strava or any other app that can export GPX files.
 
+## Download
+
+    git clone --recursive https://github.com/JeffIrwin/maph
+    cd maph
+
 ## Compile
 
-Use CMake, or just run `build.sh` on Linux or macOS or `build.cmd` on Windows.
+Use CMake, or run the provided CMake wrapper script:
+
+    ./build.sh
 
 ## Download your bulk GPX data from Strava
 
@@ -28,7 +35,7 @@ Here is an example:
     	"Image size x"      : 3840,
     	"Image size y"      : 2160,
     
-    	"Colormap file"     : "submodules/colormaps/ColorMaps5.0.0.xml",
+    	"Colormap file"     : "submodules/colormapper/submodules/colormaps/ColorMaps5.0.0.xml",
     	"Colormap name"     : "Black-Body Radiation",
     
     	"GPX files"         : "data/export_0/activities/*.gpx",
@@ -44,11 +51,11 @@ Here is an example:
 ## Run
 Linux or macOS:
 
-    ./target/maph data/example-1a.json
-    
+    ./build/maph data/example-1a.json
+
 Windows:
 
-    .\target\Release\maph.exe data\example-1a.json
+    .\build\maph.exe data\example-1a.json
 
 Maph will write the results to a PNG file.  A couple examples are below (we did the maph):
 

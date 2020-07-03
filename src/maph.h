@@ -99,7 +99,7 @@ class Settings
 
 		bool stat;
 
-		irwincolor::ColorMap c;
+		irwincolor::Map c;
 		bool allCmaps;
 		std::string cmapFile;
 		std::vector<std::string> mapNames;
@@ -710,7 +710,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		int io;
 		if (s.allCmaps)
 		{
-			io = irwincolor::loadColorMapNames(s.cmapFile, s.mapNames);
+			io = irwincolor::loadMapNames(s.cmapFile, s.mapNames);
 			//std::cout << "mapNames = " << s.mapNames << std::endl;
 		}
 		else

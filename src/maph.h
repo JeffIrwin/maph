@@ -66,6 +66,9 @@ enum Sampling {pointwise = 0, autosample = 1, linear = 2};
 // (mainly because I've never done them personally!)
 enum Type {hike, nordicSki, ride, run, walk};
 
+// TODO:  speed.  Also distance (or time)
+enum MapType {heat, elevation};
+
 class Settings
 {
 	public:
@@ -73,7 +76,7 @@ class Settings
 		int nx, ny, nxy;
 
 		bool fit, fitx, fity, fitnx, fitny;
-		double minx, maxx, miny, maxy, margin;
+		double minx, maxx, miny, maxy, mine, maxe, margin;
 		double degPerPix;
 
 		// Kernel radius (pixels)
@@ -108,6 +111,8 @@ class Settings
 		bool filterType;
 		Type type;
 
+		MapType mapType;
+
 		// Filter by start/end date?
 		bool filterAfter, filterBefore;
 		std::tm aftertm, beforetm;
@@ -125,6 +130,7 @@ class Data
 		std::vector<std::string> gpxs;      // filenames
 		std::vector<double> lats;           // lattitudes
 		std::vector<double> lons;           // longitudes
+		std::vector<double> eles;           // elevations
 		std::vector<unsigned int> iEndSeg;  // index of each segment's end
 		int ntrkptsum;                      // number of trackpoints
 };
@@ -169,6 +175,14 @@ std::string getSamplingName(Sampling s)
 		return "linear";
 	else
 		return "autosample";
+}
+
+std::string getMapTypeName(MapType t)
+{
+	if (t == elevation)
+		return "elevation";
+	else
+		return "heat";
 }
 
 std::string getTypeName(Type t)
@@ -289,11 +303,16 @@ std::vector<uint8_t> colorPixels(const Settings& s,
 		// Map img[idx[i]] to x in range [0, 1].
 		if (img[idx[i]] == 0)
 		{
-			//// Map 0 to NaN color.  Otherwise evenly distribute.
-			//x = 2.0;
-
-			// Leave 0 as is.
-			x = 0.0;
+			if (s.mapType == elevation)
+			{
+				// Map 0 to NaN color.  Otherwise evenly distribute.
+				x = 2.0;
+			}
+			else
+			{
+				// Leave 0 as is.
+				x = 0.0;
+			}
 		}
 		else if (i > 0 && img[idx[i]] == img[idx[i-1]])
 		{
@@ -323,7 +342,8 @@ std::vector<uint8_t> colorPixels(const Settings& s,
 }
 
 void addKernel(const Settings& s, double lat, double lon,
-		std::vector<unsigned int>& img, std::vector<unsigned int>& kernel)
+		std::vector<unsigned int>& img, std::vector<unsigned int>& kernel,
+		double scalar)
 {
 	// Add a single heat kernel to the image at coordinate (lat, lon).
 
@@ -348,7 +368,21 @@ void addKernel(const Settings& s, double lat, double lon,
 					int dxr = dx + s.r;
 					int ik = iyk + dxr;
 					int ip = iyp + ix ;
-					img[ip] += kernel[ik];
+
+					if (s.mapType == elevation)
+					{
+						// Just set, don't add.  This should
+						// probably be the default for non-heat
+						// maps.  Could use max() instead for
+						// non-cylinder kernels.
+						if (kernel[ik] > 0)
+							img[ip] = floor(kernel[ik] * scalar);
+					}
+					else // heat
+					{
+						img[ip] += kernel[ik];
+					}
+
 				}
 			}
 		}
@@ -477,6 +511,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	s.after = 0;
 	s.filterBefore = false;
 	s.before = 0;
+	s.mapType = heat;
 
 	bool bminx = false, bminy = false, bmaxx = false, bmaxy = false;
 
@@ -507,6 +542,7 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	const std::string typeId = "Type";
 	const std::string afterId = "After";
 	const std::string beforeId = "Before";
+	const std::string mapTypeId = "Map type";
 
 	for (json::iterator it = inj.begin(); it != inj.end(); it++)
 	{
@@ -653,6 +689,18 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 						<< it.value() << ", defaulting to all activity types.\n";
 			}
 		}
+		else if (it.key() == mapTypeId && it.value().is_string())
+		{
+			if (it.value() == getMapTypeName(elevation))
+				s.mapType = elevation;
+			else if (it.value() == getMapTypeName(heat))
+				s.mapType = heat;
+			else
+			{
+				std::cout << "\nWarning:  unknown map type value "
+						<< it.value() << ", defaulting to heat map.\n";
+			}
+		}
 		else if (it.key() == afterId && it.value().is_string())
 		{
 			s.filterAfter = true;
@@ -674,6 +722,13 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 
 	s.fit = !(bminx && bminy && bmaxx && bmaxy);
 
+	if (s.mapType == elevation)
+	{
+		// Linear sampling, cylinder kernel only for elevation map
+		s.sampling = linear;
+		s.kernel = cylinder;
+	}
+
 	// Echo inputs
 	std::cout << "\n";
 	std::cout << "Image size" << " = " << s.nx << ", " << s.ny << "\n";
@@ -694,7 +749,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 	std::cout << fityId << " = " << s.fity << "\n";
 	std::cout << fitnxId << " = " << s.fitnx << "\n";
 	std::cout << fitnyId << " = " << s.fitny << "\n";
-	std::cout << typeId << " = " << getTypeName(s.type) << "\n";
+	std::cout << mapTypeId << " = " << getMapTypeName(s.mapType) << "\n";
+
+	if (s.filterType) std::cout << typeId << " = " << getTypeName(s.type) << "\n";
 
 	if (s.filterAfter) std::cout << afterId << " = " << std::put_time(&s.aftertm, "%c") << "\n";
 	if (s.filterBefore) std::cout << beforeId << " = " << std::put_time(&s.beforetm, "%c") << "\n";
@@ -797,12 +854,12 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i,
 int loadGpxs(Settings&s, Transformation& t, Data& d)
 {
 	d.ntrkptsum = 0;
-	double lat, lon;
+	double lat, lon, ele, ele0;
 	for (int ig = 0; ig < d.gpxs.size(); ig++)
 	{
 		int ntrkpt = 0;
 		double dist = 0.0;
-		double ele, ele0;
+		bool errEle = false;
 
 		if (s.verb > 0 || s.stat) std::cout << "GPX file = " << d.gpxs[ig] << std::endl;
 
@@ -855,13 +912,21 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 				lon = std::stod(trkpt.attribute("lon").value());
 				//std::cout << "lat, lon = " << lat << ", " << lon << "\n";
 
-				//// TODO:  this needs error handling
-				//ele0 = ele;
-				//ele = std::stod(trkpt.child_value("ele"));
-				//std::cout << "ele = " << ele << "\n";
+				ele0 = ele;
+				try
+				{
+					ele = std::stod(trkpt.child_value("ele"));
+					//std::cout << "ele = " << ele << "\n";
+				}
+				catch (const std::exception& e)
+				{
+					ele = 0.0;
+					errEle = true;
+				}
 
 				d.lats.push_back(lat);
 				d.lons.push_back(lon);
+				d.eles.push_back(ele);
 
 				if (s.stat)
 				{
@@ -935,6 +1000,12 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 			d.ntrkptsum += ntrkpt;
 			d.iEndSeg.push_back(d.ntrkptsum - 1);
 
+			if (errEle)
+			{
+				std::cout << "\nWarning:  cannot parse elevations in GPX file \"" << d.gpxs[ig]
+						<< "\"." << std::endl;
+			}
+
 		}
 		catch (const std::exception& e)
 		{
@@ -948,6 +1019,7 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 
 	//std::cout << "d.lats = " << d.lats << std::endl;
 	//std::cout << "d.lons = " << d.lons << std::endl;
+	//std::cout << "d.eles = " << d.eles << std::endl;
 	//std::cout << "d.iEndSeg = " << d.iEndSeg << std::endl;
 
 	std::cout << "\nTotal number of track points = " << d.ntrkptsum << std::endl;
@@ -1072,6 +1144,10 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 	int np = 70;
 	const std::string pstr = "=";
 
+	// Kernel scalar for map types other than heat
+	double scalar = 1.0;
+	double scaleMax = 1.e9;
+
 	if (s.sampling == pointwise)
 	{
 		std::cout << "Convoluting pointwise..." << std::endl;
@@ -1079,7 +1155,7 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 		for (int i = 0; i < d.ntrkptsum; i++)
 		{
 			printProgress(np * i / d.ntrkptsum, pstr);
-			addKernel(s, d.lats[i], d.lons[i], img, kernel);
+			addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 		}
 	}
 	else
@@ -1093,7 +1169,10 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			if (i == d.iEndSeg[iseg])
 			{
 				// Final point
-				addKernel(s, d.lats[i], d.lons[i], img, kernel);
+
+				scalar = scaleMax * (d.eles[i] - s.mine) / (s.maxe - s.mine);
+
+				addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 				iseg++;
 			}
 			else
@@ -1105,6 +1184,9 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 				double x1 = d.lons[i + 1];
 				double y1 = d.lats[i + 1];
 
+				double e0 = d.eles[i];
+				double e1 = d.eles[i + 1];
+
 				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 				int n = std::max((int) (4 * (dpix / s.r)), 1);
 
@@ -1112,7 +1194,12 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 				{
 					double lat = y0 + ((double) j / n) * (y1 - y0);
 					double lon = x0 + ((double) j / n) * (x1 - x0);
-					addKernel(s, lat, lon, img, kernel);
+
+					double ele = e0 + ((double) j / n) * (e1 - e0);
+					scalar = scaleMax * (ele - s.mine) / (s.maxe - s.mine);
+					//std::cout << "scalar = " << scalar << "\n";
+
+					addKernel(s, lat, lon, img, kernel, scalar);
 				}
 			}
 		}
@@ -1157,6 +1244,9 @@ void setFitting(Settings& s, Data& d)
 		s.maxx = *max_element(begin(d.lons), end(d.lons));
 		s.miny = *min_element(begin(d.lats), end(d.lats));
 		s.maxy = *max_element(begin(d.lats), end(d.lats));
+
+		s.mine = *min_element(begin(d.eles), end(d.eles));
+		s.maxe = *max_element(begin(d.eles), end(d.eles));
 	}
 
 	if (s.fitnx)
@@ -1208,6 +1298,8 @@ void setFitting(Settings& s, Data& d)
 
 	if (s.fit || s.fitx || s.fity || s.margin != 0.0)
 		printBounds(s);
+
+	std::cout << "\t" << s.mine << " <= elevation <= " << s.maxe << std::endl;
 
 	s.degPerPix
 			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))

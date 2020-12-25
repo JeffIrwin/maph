@@ -66,8 +66,12 @@ enum Sampling {pointwise = 0, autosample = 1, linear = 2};
 // (mainly because I've never done them personally!)
 enum Type {hike, nordicSki, ride, run, walk};
 
-// TODO:  speed.  Also distance (or time)
-enum MapType {heat, elevation};
+// TODO:
+// - speed
+// - heartrate
+// - gradient
+// - distance (or time, but not like strava #TimeMap)
+enum MapType {elevation, gradient, heat};
 
 class Settings
 {
@@ -76,7 +80,7 @@ class Settings
 		int nx, ny, nxy;
 
 		bool fit, fitx, fity, fitnx, fitny;
-		double minx, maxx, miny, maxy, mine, maxe, margin;
+		double minx, maxx, miny, maxy, mins, maxs, margin;
 		double degPerPix;
 
 		// Kernel radius (pixels)
@@ -131,6 +135,7 @@ class Data
 		std::vector<double> lats;           // lattitudes
 		std::vector<double> lons;           // longitudes
 		std::vector<double> eles;           // elevations
+		std::vector<double> scas;           // scalars for non-heat map type
 		std::vector<unsigned int> iEndSeg;  // index of each segment's end
 		int ntrkptsum;                      // number of trackpoints
 };
@@ -181,6 +186,8 @@ std::string getMapTypeName(MapType t)
 {
 	if (t == elevation)
 		return "elevation";
+	else if (t == gradient)
+		return "gradient";
 	else
 		return "heat";
 }
@@ -303,7 +310,7 @@ std::vector<uint8_t> colorPixels(const Settings& s,
 		// Map img[idx[i]] to x in range [0, 1].
 		if (img[idx[i]] == 0)
 		{
-			if (s.mapType == elevation)
+			if (s.mapType != heat)
 			{
 				// Map 0 to NaN color.  Otherwise evenly distribute.
 				x = 2.0;
@@ -369,14 +376,14 @@ void addKernel(const Settings& s, double lat, double lon,
 					int ik = iyk + dxr;
 					int ip = iyp + ix ;
 
-					if (s.mapType == elevation)
+					if (s.mapType != heat)
 					{
 						// Just set, don't add.  This should
 						// probably be the default for non-heat
 						// maps.  Could use max() instead for
 						// non-cylinder kernels.
 						if (kernel[ik] > 0)
-							img[ip] = floor(kernel[ik] * scalar);
+							img[ip] = floor(kernel[ik] * scalar) + 1;
 					}
 					else // heat
 					{
@@ -693,6 +700,8 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 		{
 			if (it.value() == getMapTypeName(elevation))
 				s.mapType = elevation;
+			else if (it.value() == getMapTypeName(gradient))
+				s.mapType = gradient;
 			else if (it.value() == getMapTypeName(heat))
 				s.mapType = heat;
 			else
@@ -722,9 +731,9 @@ int loadSettings(Settings& s, json& inj, std::string& fjson)
 
 	s.fit = !(bminx && bminy && bmaxx && bmaxy);
 
-	if (s.mapType == elevation)
+	if (s.mapType != heat)
 	{
-		// Linear sampling, cylinder kernel only for elevation map
+		// Linear sampling, cylinder kernel only for non-heat maps
 		s.sampling = linear;
 		s.kernel = cylinder;
 	}
@@ -786,7 +795,7 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i,
 
 	//double r = 3958.7613;   // mean radius (mi)
 	double r = 3949.9028;   // polar radius (mi)
-	double mipm = 1609.34;  // miles per meter
+	double mipm = 1609.34;  // 1 mile in meters (misnomer)
 
 	// Fudge factors are for matching 2939617387.gpx to strava
 
@@ -944,6 +953,54 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 						                 ele0, ele);
 					}
 				}
+
+			}  // trackpoint loop
+
+			// Save scalars
+			if (s.mapType == elevation)
+			{
+				for (int i = 0; i < ntrkpt; i++)
+					d.scas.push_back(d.eles[d.ntrkptsum + i]);
+			}
+			else if (s.mapType == gradient)
+			{
+				// TODO:  gradient units?  Not that it matters at
+				// all for the colormap, but I think these are
+				// meters per mile.
+
+				// First point, a little WET
+				double dist = distance(
+					d.lats[d.ntrkptsum],
+					d.lons[d.ntrkptsum],
+					d.lats[d.ntrkptsum + 1],
+					d.lons[d.ntrkptsum + 1],
+					d.eles[d.ntrkptsum],
+					d.eles[d.ntrkptsum + 1]);
+
+				double s0;
+				double s = (d.eles[1] - d.eles[0]) / dist;
+				d.scas.push_back(s);
+
+				for (int i = 1; i < ntrkpt - 1; i++)
+				{
+					s0 = s;
+					dist = distance(
+						d.lats[d.ntrkptsum + i],
+						d.lons[d.ntrkptsum + i],
+						d.lats[d.ntrkptsum + i + 1],
+						d.lons[d.ntrkptsum + i + 1],
+						d.eles[d.ntrkptsum + i],
+						d.eles[d.ntrkptsum + i + 1]);
+
+					s = (d.eles[d.ntrkptsum + i + 1] - d.eles[d.ntrkptsum + i]) / dist;
+
+					// Average of preceeding and following line segments
+					d.scas.push_back(0.5 * (s0 + s));
+
+				}
+
+				// Final point
+				d.scas.push_back(s);
 			}
 
 			if (s.stat) std::cout << "Distance = " << dist << " mi\n";
@@ -1015,7 +1072,8 @@ int loadGpxs(Settings&s, Transformation& t, Data& d)
 			std::cout << e.what() << std::endl;
 			//return ERR_XML_PARSE;
 		}
-	}
+
+	}  // GPX file loop
 
 	//std::cout << "d.lats = " << d.lats << std::endl;
 	//std::cout << "d.lons = " << d.lons << std::endl;
@@ -1170,7 +1228,7 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			{
 				// Final point
 
-				scalar = scaleMax * (d.eles[i] - s.mine) / (s.maxe - s.mine);
+				scalar = scaleMax * (d.scas[i] - s.mins) / (s.maxs - s.mins);
 
 				addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 				iseg++;
@@ -1184,8 +1242,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 				double x1 = d.lons[i + 1];
 				double y1 = d.lats[i + 1];
 
-				double e0 = d.eles[i];
-				double e1 = d.eles[i + 1];
+				double s0 = d.scas[i];
+				double s1 = d.scas[i + 1];
 
 				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 				int n = std::max((int) (4 * (dpix / s.r)), 1);
@@ -1195,8 +1253,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					double lat = y0 + ((double) j / n) * (y1 - y0);
 					double lon = x0 + ((double) j / n) * (x1 - x0);
 
-					double ele = e0 + ((double) j / n) * (e1 - e0);
-					scalar = scaleMax * (ele - s.mine) / (s.maxe - s.mine);
+					double sca = s0 + ((double) j / n) * (s1 - s0);
+					scalar = scaleMax * (sca - s.mins) / (s.maxs - s.mins);
 					//std::cout << "scalar = " << scalar << "\n";
 
 					addKernel(s, lat, lon, img, kernel, scalar);
@@ -1245,8 +1303,8 @@ void setFitting(Settings& s, Data& d)
 		s.miny = *min_element(begin(d.lats), end(d.lats));
 		s.maxy = *max_element(begin(d.lats), end(d.lats));
 
-		s.mine = *min_element(begin(d.eles), end(d.eles));
-		s.maxe = *max_element(begin(d.eles), end(d.eles));
+		s.mins = *min_element(begin(d.scas), end(d.scas));
+		s.maxs = *max_element(begin(d.scas), end(d.scas));
 	}
 
 	if (s.fitnx)
@@ -1299,7 +1357,8 @@ void setFitting(Settings& s, Data& d)
 	if (s.fit || s.fitx || s.fity || s.margin != 0.0)
 		printBounds(s);
 
-	std::cout << "\t" << s.mine << " <= elevation <= " << s.maxe << std::endl;
+	if (s.mapType != heat)
+		std::cout << "\t" << s.mins << " <= scalar <= " << s.maxs << std::endl;
 
 	s.degPerPix
 			= sqrt(pow(s.maxx - s.minx, 2) + pow(s.maxy - s.miny, 2))

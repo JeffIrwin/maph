@@ -69,7 +69,6 @@ enum Type {hike, nordicSki, ride, run, walk};
 // TODO:
 // - speed
 // - heartrate
-// - gradient
 // - distance (or time, but not like strava #TimeMap)
 enum MapType {elevation, gradient, heat};
 
@@ -1228,7 +1227,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			{
 				// Final point
 
-				scalar = scaleMax * (d.scas[i] - s.mins) / (s.maxs - s.mins);
+				if (s.mapType != heat)
+					scalar = scaleMax * (d.scas[i] - s.mins) / (s.maxs - s.mins);
 
 				addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 				iseg++;
@@ -1242,8 +1242,12 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 				double x1 = d.lons[i + 1];
 				double y1 = d.lats[i + 1];
 
-				double s0 = d.scas[i];
-				double s1 = d.scas[i + 1];
+				double s0, s1;
+				if (s.mapType != heat)
+				{
+					s0 = d.scas[i];
+					s1 = d.scas[i + 1];
+				}
 
 				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 				int n = std::max((int) (4 * (dpix / s.r)), 1);
@@ -1253,9 +1257,12 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					double lat = y0 + ((double) j / n) * (y1 - y0);
 					double lon = x0 + ((double) j / n) * (x1 - x0);
 
-					double sca = s0 + ((double) j / n) * (s1 - s0);
-					scalar = scaleMax * (sca - s.mins) / (s.maxs - s.mins);
-					//std::cout << "scalar = " << scalar << "\n";
+					if (s.mapType != heat)
+					{
+						double sca = s0 + ((double) j / n) * (s1 - s0);
+						scalar = scaleMax * (sca - s.mins) / (s.maxs - s.mins);
+						//std::cout << "scalar = " << scalar << "\n";
+					}
 
 					addKernel(s, lat, lon, img, kernel, scalar);
 				}
@@ -1303,8 +1310,11 @@ void setFitting(Settings& s, Data& d)
 		s.miny = *min_element(begin(d.lats), end(d.lats));
 		s.maxy = *max_element(begin(d.lats), end(d.lats));
 
-		s.mins = *min_element(begin(d.scas), end(d.scas));
-		s.maxs = *max_element(begin(d.scas), end(d.scas));
+		if (s.mapType != heat)
+		{
+			s.mins = *min_element(begin(d.scas), end(d.scas));
+			s.maxs = *max_element(begin(d.scas), end(d.scas));
+		}
 	}
 
 	if (s.fitnx)

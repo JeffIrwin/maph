@@ -796,13 +796,15 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i,
 	double r = 3949.9028;   // polar radius (mi)
 	double mipm = 1609.34;  // 1 mile in meters (misnomer)
 
-	// Fudge factors are for matching 2939617387.gpx to strava
+	// Fudge factors are for matching 2939617387.gpx to strava.
+	// It's not exact.  Strava may apply smoothing to GPS points
+	// before summing distances.
 
-	//double fudge = 1.0;
+	double fudge = 1.0;
 	//double fudge = 0.9910412; // haversine w/o ele
 	//double fudge = 0.9902064;  // haversine w/ ele
 	//double fudge = 0.9873515;  // WGS-84 w/ ele
-	double fudge = 0.9881791;  // WGS-84 w/o ele.  Closest so far.
+	//double fudge = 0.9881791;  // WGS-84 w/o ele.  Closest so far.
 
 	// WGS-84
 	double a = 6378137.0   ;  // equatorial radius     (m)
@@ -833,19 +835,8 @@ double distance(double lat1i, double lon1i, double lat2i, double lon2i,
 	double z2 = (pow(b/a, 2) * n2 + ele2i) * sin(lat2);
 
 	double d = sqrt(pow(x2-x1, 2) + pow(y2-y1, 2) + pow(z2-z1, 2));
-	d = sqrt(pow(d, 2) - pow(ele2i - ele1i, 2));
+	//d = sqrt(pow(d, 2) - pow(ele2i - ele1i, 2));
 	d /= mipm;
-
-	// TODO:  try sphere with line segments (NOT haversine
-	// geodesic).  Nothing else matches so far, even with fudge
-	// factors.
-
-	//// Haversine on a sphere
-	//double d = 2 * r * asin(sqrt(         pow(sin(0.5 * (lat2 - lat1)), 2)
-	//            + cos(lat1) * cos(lat2) * pow(sin(0.5 * (lon2 - lon1)), 2)));
-
-	//// Pythagoras for adding elevation
-	//d = sqrt(pow(d, 2) + pow((ele2i - ele1i) / mipm, 2));
 
 	//if (d > 1.0)
 	//{
@@ -1220,8 +1211,13 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 		std::cout << "Convoluting linearly..." << std::endl;
 		printBar(np, pstr);
 		unsigned int iseg = 0;
-		for (int i = 0; i < d.ntrkptsum; i++)
+		double dd = 0.0;
+
+		int i = 0;
+		//for (int i = 0; i < d.ntrkptsum; i++)
+		while (i < d.ntrkptsum)
 		{
+			double dpix;
 			printProgress(np * i / d.ntrkptsum, pstr);
 			if (i == d.iEndSeg[iseg])
 			{
@@ -1229,9 +1225,11 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 
 				if (s.mapType != heat)
 					scalar = scaleMax * (d.scas[i] - s.mins) / (s.maxs - s.mins);
+				//addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 
-				addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
 				iseg++;
+				i++;
+				dd = 0.0;
 			}
 			else
 			{
@@ -1249,24 +1247,73 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					s1 = d.scas[i + 1];
 				}
 
-				double dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
+				dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 				int n = std::max((int) (4 * (dpix / s.r)), 1);
 
-				for (int j = 0; j < n; j++)
+				//if (n > 1)
+				//	std::cout << "dpix, n = " << dpix << " " << n << "\n";
+
+				//for (int j = 0; j < n; j++)
+				//while (0.0 <= dd && dd < 1.0)
+				while (dd < 1.0)
 				{
-					double lat = y0 + ((double) j / n) * (y1 - y0);
-					double lon = x0 + ((double) j / n) * (x1 - x0);
+					//double lat = y0 + ((double) j / n) * (y1 - y0);
+					//double lon = x0 + ((double) j / n) * (x1 - x0);
+					double lat = y0 + dd * (y1 - y0);
+					double lon = x0 + dd * (x1 - x0);
 
 					if (s.mapType != heat)
 					{
-						double sca = s0 + ((double) j / n) * (s1 - s0);
+						//double sca = s0 + ((double) j / n) * (s1 - s0);
+						double sca = s0 + dd * (s1 - s0);
 						scalar = scaleMax * (sca - s.mins) / (s.maxs - s.mins);
 						//std::cout << "scalar = " << scalar << "\n";
 					}
 
 					addKernel(s, lat, lon, img, kernel, scalar);
+
+					//if (n > 1)
+					//	std::cout << "dd = " << dd << "\n";
+
+					if (dpix == 0.0)
+					{
+						//dd = 1.0;
+						i++;
+						break;
+					}
+					else
+						dd += s.r / (dpix * 4);
+
 				}
 			}
+
+			//dd = 0.0;
+			//dd = fmod(dd, 1.0);
+			//std::cout << "d.iEndSeg[iseg] = " << d.iEndSeg[iseg] << "\n";
+
+			// Offset next kernel one step size away from last one
+			double dpix0 = dpix;
+			if (dpix0 != 0.0)
+			{
+				while (dd >= 1.0 && i < d.iEndSeg[iseg] && i < d.ntrkptsum)
+				{
+					i++;
+					//std::cout << "i = " << i << std::endl;
+
+					double x0 = d.lons[i];
+					double y0 = d.lats[i];
+					double x1 = d.lons[i + 1];
+					double y1 = d.lats[i + 1];
+					dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
+
+					dd = (dd - dpix / dpix0);
+
+					//std::cout << "dd = " << dd << std::endl;
+				}
+			}
+			dd = std::max(dd, 0.0);
+
+			//i++;
 		}
 	}
 	std::cout << "|" << std::endl;

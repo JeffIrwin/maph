@@ -1214,7 +1214,6 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 		double dd = 0.0;
 
 		int i = 0;
-		//for (int i = 0; i < d.ntrkptsum; i++)
 		while (i < d.ntrkptsum)
 		{
 			double dpix;
@@ -1222,11 +1221,6 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			if (i == d.iEndSeg[iseg])
 			{
 				// Final point
-
-				if (s.mapType != heat)
-					scalar = scaleMax * (d.scas[i] - s.mins) / (s.maxs - s.mins);
-				//addKernel(s, d.lats[i], d.lons[i], img, kernel, scalar);
-
 				iseg++;
 				i++;
 				dd = 0.0;
@@ -1247,24 +1241,16 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					s1 = d.scas[i + 1];
 				}
 
+				// Already calculated?
 				dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
-				int n = std::max((int) (4 * (dpix / s.r)), 1);
 
-				//if (n > 1)
-				//	std::cout << "dpix, n = " << dpix << " " << n << "\n";
-
-				//for (int j = 0; j < n; j++)
-				//while (0.0 <= dd && dd < 1.0)
 				while (dd < 1.0)
 				{
-					//double lat = y0 + ((double) j / n) * (y1 - y0);
-					//double lon = x0 + ((double) j / n) * (x1 - x0);
 					double lat = y0 + dd * (y1 - y0);
 					double lon = x0 + dd * (x1 - x0);
 
 					if (s.mapType != heat)
 					{
-						//double sca = s0 + ((double) j / n) * (s1 - s0);
 						double sca = s0 + dd * (s1 - s0);
 						scalar = scaleMax * (sca - s.mins) / (s.maxs - s.mins);
 						//std::cout << "scalar = " << scalar << "\n";
@@ -1272,12 +1258,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 
 					addKernel(s, lat, lon, img, kernel, scalar);
 
-					//if (n > 1)
-					//	std::cout << "dd = " << dd << "\n";
-
 					if (dpix == 0.0)
 					{
-						//dd = 1.0;
 						i++;
 						break;
 					}
@@ -1286,9 +1268,6 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 
 				}
 			}
-
-			//dd = 0.0;
-			//dd = fmod(dd, 1.0);
 			//std::cout << "d.iEndSeg[iseg] = " << d.iEndSeg[iseg] << "\n";
 
 			// Offset next kernel one step size away from last one
@@ -1313,7 +1292,6 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			}
 			dd = std::max(dd, 0.0);
 
-			//i++;
 		}
 	}
 	std::cout << "|" << std::endl;

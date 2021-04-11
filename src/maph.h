@@ -99,6 +99,10 @@ class Settings
 
 		Kernel kernel;
 
+		// Linear sampling stepsize in units of kernel radii.  TODO:
+		// optionally load from JSON
+		double step = 0.25;
+
 		std::string fname;
 		std::string fgpx;
 		int verb;
@@ -1212,6 +1216,7 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 		printBar(np, pstr);
 		unsigned int iseg = 0;
 		double dd = 0.0;
+		double dd0 = 0.0;
 
 		int i = 0;
 		while (i < d.ntrkptsum)
@@ -1227,6 +1232,8 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 			}
 			else
 			{
+				//std::cout << "sampling dd = " << dd << std::endl;
+
 				// Linear subsampling
 
 				double x0 = d.lons[i];
@@ -1241,11 +1248,14 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					s1 = d.scas[i + 1];
 				}
 
-				// Already calculated?
+				// Distance between trackpoint i and i+1 in units of
+				// pixels.  Already calculated?
 				dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 
 				while (dd < 1.0)
 				{
+					//std::cout << "dd = " << dd << std::endl;
+
 					double lat = y0 + dd * (y1 - y0);
 					double lon = x0 + dd * (x1 - x0);
 
@@ -1258,13 +1268,17 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 
 					addKernel(s, lat, lon, img, kernel, scalar);
 
+					dd0 = dd;
 					if (dpix == 0.0)
 					{
 						i++;
 						break;
 					}
 					else
-						dd += s.r / (dpix * 4);
+					{
+						// Move a step of a fraction of the kernel radius
+						dd += s.step * s.r / dpix;
+					}
 
 				}
 			}
@@ -1283,13 +1297,33 @@ std::vector<unsigned int> convolute(Settings& s, Data& d,
 					double y0 = d.lats[i];
 					double x1 = d.lons[i + 1];
 					double y1 = d.lats[i + 1];
-					dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 
-					dd = (dd - dpix / dpix0);
+					if (x0 != x1 || y0 != y1)
+					{
+						dpix0 = dpix;
+						dpix = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2)) / s.degPerPix;
 
-					//std::cout << "dd = " << dd << std::endl;
+						// Residual distance leftover from the last
+						// line, as a fraction of last line's length
+						double ddres = 1.0 - dd0;
+
+						// Residual in pixels
+						double pixres = ddres * dpix0;
+
+						// Offset from new starting point in pixels
+						double pixstart = s.step * s.r - pixres;
+
+						// Dimensionless offset (and hypothetical
+						// previous point in case of overflow)
+						dd = pixstart / dpix;
+						dd0 = dd - s.step * s.r / dpix;
+
+						//std::cout << "dd = " << dd << std::endl;
+					}
 				}
 			}
+
+			// Just in case
 			dd = std::max(dd, 0.0);
 
 		}
